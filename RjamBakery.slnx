@@ -1,0 +1,12 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RjamBakery.Application/RjamBakery.Application.csproj" />
+    <Project Path="src/RjamBakery.Domain/RjamBakery.Domain.csproj" />
+    <Project Path="src/RjamBakery.Infrastructure/RjamBakery.Infrastructure.csproj" />
+    <Project Path="src/RjamBakery.Web/RjamBakery.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RjamBakery.IntegrationTests/RjamBakery.IntegrationTests.csproj" />
+    <Project Path="tests/RjamBakery.UnitTests/RjamBakery.UnitTests.csproj" />
+  </Folder>
+</Solution>

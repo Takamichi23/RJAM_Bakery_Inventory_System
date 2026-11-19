@@ -1,0 +1,19 @@
+@page "/not-found"
+@page "/404"
+@layout Layout.EmptyLayout
+@attribute [AllowAnonymous]
+
+<PageTitle>404 Page Not Found - RJAM Bakery</PageTitle>
+
+<AuthorizeView>
+    <Authorized>
+        <div class="auth-shell">
+            <NotFoundScreen IsAuthenticated="true" />
+        </div>
+    </Authorized>
+    <NotAuthorized>
+        <div class="auth-shell">
+            <NotFoundScreen IsAuthenticated="false" />
+        </div>
+    </NotAuthorized>
+</AuthorizeView>

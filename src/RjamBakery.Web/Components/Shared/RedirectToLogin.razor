@@ -1,0 +1,14 @@
+@using RjamBakery.Web.Security
+@inject NavigationManager Navigation
+
+<BrandLoadingScreen Message="Redirecting to Sign In..." />
+
+@code {
+    protected override void OnInitialized()
+    {
+        var relative = "/" + Navigation.ToBaseRelativePath(Navigation.Uri).TrimStart('/');
+        var safePath = SecurityUrlHelper.GetSafeLocalReturnUrl(relative);
+        var encoded = Uri.EscapeDataString(safePath);
+        Navigation.NavigateTo($"/Account/Login?ReturnUrl={encoded}", forceLoad: true);
+    }
+}

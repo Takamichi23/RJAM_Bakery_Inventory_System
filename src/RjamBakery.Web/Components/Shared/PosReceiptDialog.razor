@@ -1,0 +1,98 @@
+@using RjamBakery.Application.Contracts
+@inject IJSRuntime JS
+
+<MudDialog>
+    <TitleContent>
+        <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2">
+            <MudIcon Icon="@Icons.Material.Filled.ReceiptLong" Color="Color.Secondary" />
+            <MudText Typo="Typo.h6">Sales Receipt</MudText>
+        </MudStack>
+    </TitleContent>
+    <DialogContent>
+        @if (Receipt is not null)
+        {
+            var tx = Receipt.Transaction;
+            <div class="rjam-receipt-printable pa-4" style="background:#FFFFFF; border:1px solid #E6DBD1; border-radius:10px; max-width:380px; margin:auto;">
+                <div style="text-align:center; border-bottom:1px dashed #D8C9BC; padding-bottom:12px; margin-bottom:12px;">
+                    <img src="images/rjam-logo.png" alt="@Receipt.BakeryName" style="height:44px; width:auto; margin:0 auto 6px auto; display:block;" />
+                    <MudText Typo="Typo.h6" Style="font-weight:700; letter-spacing:0.04em;">@Receipt.BakeryName.ToUpperInvariant()</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">Official POS Receipt</MudText>
+                    <div class="mt-2">
+                        <MudText Typo="Typo.body2" Class="tabular-nums"><strong>@tx.ReceiptNumber</strong></MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">@tx.TransactionDate.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</MudText><br />
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">Cashier: @tx.CashierUserName</MudText>
+                    </div>
+                </div>
+
+                <div style="border-bottom:1px dashed #D8C9BC; padding-bottom:10px; margin-bottom:10px;">
+                    @foreach (var item in tx.Items)
+                    {
+                        <div style="display:flex; justify-content:space-between; gap:8px; margin-bottom:6px; font-size:0.85rem;">
+                            <div>
+                                <div style="font-weight:600; color:#2E1C16;">@item.ProductNameSnapshot</div>
+                                <div class="tabular-nums" style="font-size:0.75rem; color:#6F5B53;">
+                                    @item.Quantity.ToString("0.##") × @Receipt.CurrencySymbol@item.UnitPrice.ToString("N2")
+                                </div>
+                            </div>
+                            <div class="tabular-nums" style="font-weight:600; color:#2E1C16;">
+                                @Receipt.CurrencySymbol@item.LineTotal.ToString("N2")
+                            </div>
+                        </div>
+                    }
+                </div>
+
+                <div style="font-size:0.85rem;">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                        <span>Subtotal</span>
+                        <span class="tabular-nums">@Receipt.CurrencySymbol@tx.SubTotal.ToString("N2")</span>
+                    </div>
+                    @if (tx.DiscountAmount > 0)
+                    {
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#3E7B5A;">
+                            <span>Discount</span>
+                            <span class="tabular-nums">-@Receipt.CurrencySymbol@tx.DiscountAmount.ToString("N2")</span>
+                        </div>
+                    }
+                    <div style="display:flex; justify-content:space-between; margin:8px 0; font-weight:700; font-size:1rem; color:#2E1C16;">
+                        <span>TOTAL</span>
+                        <span class="tabular-nums">@Receipt.CurrencySymbol@tx.TotalAmount.ToString("N2")</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:4px; color:#6F5B53;">
+                        <span>Paid (@tx.PaymentMethod)</span>
+                        <span class="tabular-nums">@Receipt.CurrencySymbol@tx.AmountTendered.ToString("N2")</span>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; color:#6F5B53;">
+                        <span>Change</span>
+                        <span class="tabular-nums">@Receipt.CurrencySymbol@tx.ChangeAmount.ToString("N2")</span>
+                    </div>
+                </div>
+
+                @if (tx.Status != Domain.Enums.PosTransactionStatus.Completed)
+                {
+                    <MudAlert Severity="Severity.Error" Dense="true" Class="mt-3">
+                        STATUS: @tx.Status — @tx.VoidOrRefundReason
+                    </MudAlert>
+                }
+            </div>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Print" OnClick="PrintAsync">
+            Print Receipt
+        </MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">
+            Close
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance MudDialog { get; set; } = default!;
+
+    [Parameter]
+    public PosReceiptDto? Receipt { get; set; }
+
+    private async Task PrintAsync() => await JS.InvokeVoidAsync("window.print");
+    private void Close() => MudDialog.Close();
+}

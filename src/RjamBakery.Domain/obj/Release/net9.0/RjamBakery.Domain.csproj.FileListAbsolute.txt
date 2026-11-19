@@ -1,0 +1,12 @@
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\bin\Release\net9.0\RjamBakery.Domain.deps.json
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\bin\Release\net9.0\RjamBakery.Domain.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\bin\Release\net9.0\RjamBakery.Domain.pdb
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.csproj.AssemblyReference.cache
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.AssemblyInfoInputs.cache
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.AssemblyInfo.cs
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.csproj.CoreCompileInputs.cache
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\refint\RjamBakery.Domain.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.pdb
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\ref\RjamBakery.Domain.dll

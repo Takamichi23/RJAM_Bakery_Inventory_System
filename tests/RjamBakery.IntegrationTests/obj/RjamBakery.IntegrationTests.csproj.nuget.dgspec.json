@@ -1,0 +1,512 @@
+{
+  "format": 1,
+  "restore": {
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\tests\\RjamBakery.IntegrationTests\\RjamBakery.IntegrationTests.csproj": {}
+  },
+  "projects": {
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj",
+        "projectName": "RjamBakery.Application",
+        "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj",
+        "packagesPath": "C:\\Users\\Roejon\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Roejon\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "FluentValidation": {
+              "target": "Package",
+              "version": "[11.11.0, )"
+            },
+            "Microsoft.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj",
+        "projectName": "RjamBakery.Domain",
+        "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj",
+        "packagesPath": "C:\\Users\\Roejon\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Roejon\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "Microsoft.Extensions.Identity.Stores": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj",
+        "projectName": "RjamBakery.Infrastructure",
+        "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj",
+        "packagesPath": "C:\\Users\\Roejon\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Roejon\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "ClosedXML": {
+              "target": "Package",
+              "version": "[0.104.2, )"
+            },
+            "Microsoft.AspNetCore.Identity.EntityFrameworkCore": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "Pomelo.EntityFrameworkCore.MySql": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            },
+            "QuestPDF": {
+              "target": "Package",
+              "version": "[2024.12.3, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\RjamBakery.Web.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\RjamBakery.Web.csproj",
+        "projectName": "RjamBakery.Web",
+        "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\RjamBakery.Web.csproj",
+        "packagesPath": "C:\\Users\\Roejon\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Roejon\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "FluentValidation.DependencyInjectionExtensions": {
+              "target": "Package",
+              "version": "[11.11.0, )"
+            },
+            "Microsoft.EntityFrameworkCore.Design": {
+              "include": "Runtime, Build, Native, ContentFiles, Analyzers, BuildTransitive",
+              "suppressParent": "All",
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "MudBlazor": {
+              "target": "Package",
+              "version": "[9.*, )"
+            },
+            "Serilog.AspNetCore": {
+              "target": "Package",
+              "version": "[9.0.0, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Host.win-x64",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.AspNetCore.App": {
+              "privateAssets": "none"
+            },
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    },
+    "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\tests\\RjamBakery.IntegrationTests\\RjamBakery.IntegrationTests.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\tests\\RjamBakery.IntegrationTests\\RjamBakery.IntegrationTests.csproj",
+        "projectName": "RjamBakery.IntegrationTests",
+        "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\tests\\RjamBakery.IntegrationTests\\RjamBakery.IntegrationTests.csproj",
+        "packagesPath": "C:\\Users\\Roejon\\.nuget\\packages\\",
+        "outputPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\tests\\RjamBakery.IntegrationTests\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "C:\\Users\\Roejon\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net9.0"
+        ],
+        "sources": {
+          "C:\\Program Files\\dotnet\\library-packs": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net9.0": {
+            "targetAlias": "net9.0",
+            "projectReferences": {
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Application\\RjamBakery.Application.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Domain\\RjamBakery.Domain.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Infrastructure\\RjamBakery.Infrastructure.csproj"
+              },
+              "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\RjamBakery.Web.csproj": {
+                "projectPath": "C:\\Users\\Roejon\\source\\repos\\RJAM_LATEST\\src\\RjamBakery.Web\\RjamBakery.Web.csproj"
+              }
+            }
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.200"
+      },
+      "frameworks": {
+        "net9.0": {
+          "targetAlias": "net9.0",
+          "dependencies": {
+            "FluentAssertions": {
+              "target": "Package",
+              "version": "[7.2.0, )"
+            },
+            "Microsoft.AspNetCore.Mvc.Testing": {
+              "target": "Package",
+              "version": "[9.0.10, )"
+            },
+            "Microsoft.NET.Test.Sdk": {
+              "target": "Package",
+              "version": "[17.12.0, )"
+            },
+            "bunit": {
+              "target": "Package",
+              "version": "[1.38.5, )"
+            },
+            "coverlet.collector": {
+              "target": "Package",
+              "version": "[6.0.2, )"
+            },
+            "xunit": {
+              "target": "Package",
+              "version": "[2.9.2, )"
+            },
+            "xunit.runner.visualstudio": {
+              "target": "Package",
+              "version": "[2.8.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "downloadDependencies": [
+            {
+              "name": "Microsoft.AspNetCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.NETCore.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            },
+            {
+              "name": "Microsoft.WindowsDesktop.App.Ref",
+              "version": "[9.0.14, 9.0.14]"
+            }
+          ],
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.201/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

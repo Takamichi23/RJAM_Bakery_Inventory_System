@@ -1,0 +1,145 @@
+@inherits LayoutComponentBase
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Infrastructure.Identity
+@using RjamBakery.Web.Theme
+@inject AuthenticationStateProvider AuthStateProvider
+@inject ScopedUserAccessor ScopedUserAccessor
+@inject IServiceScopeFactory ScopeFactory
+@inject NavigationManager Navigation
+
+<MudThemeProvider Theme="RjamTheme.BakeryTheme" IsDarkMode="false" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="0" Style="border-bottom: 1px solid #E6DBD1;">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu"
+                       Color="Color.Secondary"
+                       Edge="Edge.Start"
+                       aria-label="Toggle navigation menu"
+                       OnClick="@(() => _drawerOpen = !_drawerOpen)" />
+        <img src="images/rjam-mark.png" alt="" class="ml-1" style="height:22px; width:auto; display:block;" />
+        <MudText Typo="Typo.subtitle1" Color="Color.Secondary" Class="ml-2 font-weight-bold rjam-appbar-title">
+            @(_bakeryName)
+        </MudText>
+        <MudSpacer />
+        <AuthorizeView>
+            <Authorized>
+                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                    <MudBadge Content="@_alerts.Count" Visible="@(_alerts.Count > 0)" Color="Color.Warning" Overlap="true">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Notifications"
+                                       Color="Color.Secondary"
+                                       aria-label="Open notifications"
+                                       OnClick="@(() => _notifOpen = !_notifOpen)" />
+                    </MudBadge>
+                    <MudPopover Open="@_notifOpen" AnchorOrigin="Origin.BottomRight" TransformOrigin="Origin.TopRight" Class="pa-3" Style="width:min(320px, calc(100vw - 24px)); max-height:70vh; overflow-y:auto; border:1px solid #E6DBD1;">
+                        <MudStack Spacing="2">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween">
+                                <MudText Typo="Typo.subtitle2">Operational Alerts</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _notifOpen = false)" />
+                            </MudStack>
+                            @if (_alerts.Count == 0)
+                            {
+                                <MudText Typo="Typo.caption" Color="Color.Tertiary">No pending operational alerts.</MudText>
+                            }
+                            else
+                            {
+                                @foreach (var alert in _alerts)
+                                {
+                                    <MudPaper Elevation="0" Outlined="true" Class="pa-2" Style="background:#FBF7F3; cursor:pointer;" @onclick="@(() => GoToAlert(alert.TargetUrl))">
+                                        <MudText Typo="Typo.caption" Style="font-weight:700;">@alert.Title</MudText>
+                                        <MudText Typo="Typo.caption" Color="Color.Tertiary" Class="d-block">@alert.Detail</MudText>
+                                    </MudPaper>
+                                }
+                            }
+                        </MudStack>
+                    </MudPopover>
+
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="Color.Primary" Class="d-none d-sm-inline-flex">
+                        @GetRoleLabel(context.User)
+                    </MudChip>
+                    <MudText Typo="Typo.body2" Class="d-none d-md-inline">
+                        @(context.User.FindFirst("FullName")?.Value ?? context.User.Identity?.Name)
+                    </MudText>
+                    <MudTooltip Text="Change Password">
+                        <MudIconButton Icon="@Icons.Material.Outlined.Key"
+                                       Color="Color.Secondary"
+                                       Size="Size.Small"
+                                       aria-label="Change password"
+                                       OnClick="@(() => Navigation.NavigateTo("/Account/ChangePassword", forceLoad: true))" />
+                    </MudTooltip>
+                    <form action="/Account/Logout" method="post" class="rjam-logout-form" style="margin:0;">
+                        <AntiforgeryToken />
+                        <MudButton ButtonType="ButtonType.Submit"
+                                   Variant="Variant.Text"
+                                   Color="Color.Secondary"
+                                   Size="Size.Small"
+                                   StartIcon="@Icons.Material.Filled.Logout">
+                            Logout
+                        </MudButton>
+                    </form>
+                </MudStack>
+            </Authorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" ClipMode="DrawerClipMode.Never" Elevation="0" Variant="DrawerVariant.Responsive" Breakpoint="Breakpoint.Md">
+        <MudDrawerHeader Class="px-4 py-0 d-flex align-center justify-space-between"
+                         Style="height:var(--mud-appbar-height); min-height:var(--mud-appbar-height); flex-shrink:0; border-bottom: 1px solid rgba(247,241,235,0.12);">
+            <img src="images/rjam-logo-light.png" alt="RJAM Bakery" style="height:38px; width:auto; display:block;" />
+            <MudText Typo="Typo.caption" Style="color:#DFAA7D; font-weight:500; text-align:right; line-height:1.15;">
+                Operations<br />Portal
+            </MudText>
+        </MudDrawerHeader>
+        <div class="rjam-drawer-scroll">
+            <NavMenu />
+        </div>
+    </MudDrawer>
+
+    <MudMainContent Style="min-height:100vh; background-color:#F7F1EB;">
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-3 pa-sm-4 pa-md-6">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _notifOpen;
+    private string _bakeryName = "RJAM Bakery Operations";
+    private IReadOnlyList<DashboardAlertDto> _alerts = [];
+
+    protected override async Task OnParametersSetAsync()
+    {
+        var state = await AuthStateProvider.GetAuthenticationStateAsync();
+        ScopedUserAccessor.Principal = state.User;
+
+        if (state.User.Identity?.IsAuthenticated == true)
+        {
+            try
+            {
+                await using var headerScope = ScopeFactory.CreateAsyncScope();
+                headerScope.ServiceProvider.GetRequiredService<ScopedUserAccessor>().Principal = state.User;
+                var dashboard = headerScope.ServiceProvider.GetRequiredService<IDashboardService>();
+                var summary = await dashboard.GetSummaryAsync();
+                _bakeryName = summary.BakeryName;
+                _alerts = summary.Alerts;
+            }
+            catch
+            {
+                _alerts = [];
+            }
+        }
+    }
+
+    private void GoToAlert(string url)
+    {
+        _notifOpen = false;
+        Navigation.NavigateTo(url);
+    }
+
+    private static string GetRoleLabel(System.Security.Claims.ClaimsPrincipal user)
+        => user.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Staff";
+}

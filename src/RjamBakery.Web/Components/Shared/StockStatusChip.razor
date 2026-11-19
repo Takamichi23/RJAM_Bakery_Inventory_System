@@ -1,0 +1,15 @@
+<MudChip T="string" Size="Size.Small" Variant="Variant.Outlined" Color="@ResolveColor(Status)">
+    @Status
+</MudChip>
+
+@code {
+    [Parameter, EditorRequired] public string Status { get; set; } = "In Stock";
+
+    private static Color ResolveColor(string status) => status switch
+    {
+        "Out of Stock" or "Expired" or "Quarantined" or "Voided" or "Cancelled" or "Rejected" => Color.Error,
+        "Low Stock" or "Expiring Soon" or "Pending" or "PendingInspection" or "PendingReview" or "PartiallyReceived" or "VarianceReviewPending" => Color.Warning,
+        "In Stock" or "Available" or "Completed" or "Received" or "Confirmed" or "Approved" or "Finalized" or "RestockedToSellable" => Color.Success,
+        _ => Color.Default
+    };
+}

@@ -1,0 +1,268 @@
+@page "/returns-waste"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IWasteAndReturnService WasteService
+@inject IProductService ProductService
+@inject IRawMaterialService RawMaterialService
+@inject IFactoryInventoryService FactoryService
+@inject AuthenticationStateProvider AuthProvider
+@inject ISnackbar Snackbar
+
+<PageTitle>Returns, Damages &amp; Spoilage - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Returns, Damages &amp; Spoilage"
+            Subtitle="Record unsellable inventory losses and inspect customer returns before optional restocking."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudStack Spacing="4">
+    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3; border-radius:14px;">
+        <MudText Typo="Typo.h6" Class="mb-3">Record Loss or Customer Return</MudText>
+        <MudGrid Spacing="2">
+            <MudItem xs="12" sm="3">
+                <MudSelect @bind-Value="_location" Label="Location" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @if (_canStore)
+                    {
+                        <MudSelectItem Value="InventoryLocation.Store">Store</MudSelectItem>
+                    }
+                    @if (_canFactory)
+                    {
+                        <MudSelectItem Value="InventoryLocation.Factory">Factory</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3">
+                <MudSelect @bind-Value="_category" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    <MudSelectItem Value="WasteReturnCategory.Damaged">Damaged</MudSelectItem>
+                    <MudSelectItem Value="WasteReturnCategory.Spoiled">Spoiled</MudSelectItem>
+                    <MudSelectItem Value="WasteReturnCategory.Expired">Expired</MudSelectItem>
+                    @if (_location == InventoryLocation.Store)
+                    {
+                        <MudSelectItem Value="WasteReturnCategory.CustomerReturn">Customer Return</MudSelectItem>
+                    }
+                    <MudSelectItem Value="WasteReturnCategory.OtherLoss">Other Loss</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+
+            @if (_location == InventoryLocation.Store)
+            {
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_productId" Label="Store Product" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var p in _products)
+                        {
+                            <MudSelectItem Value="@((int?)p.Id)">@p.Name (@p.BaseUnitCode)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+            else
+            {
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_lotId" Label="Factory Stock Lot (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" T="long?">
+                        @foreach (var l in _lots)
+                        {
+                            <MudSelectItem Value="@((long?)l.Id)">@l.LotNumber — @l.ProductName (@l.AvailableQuantity.ToString("0.##"))</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="2">
+                <MudNumericField @bind-Value="_quantity" Label="Quantity" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.0001m" />
+            </MudItem>
+
+            @if (_location == InventoryLocation.Factory && _lotId is null)
+            {
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_rawMaterialId" Label="Or Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" T="int?">
+                        @foreach (var m in _materials)
+                        {
+                            <MudSelectItem Value="@((int?)m.Id)">@m.Name (@m.UnitCode)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+            }
+
+            <MudItem xs="12" sm="8">
+                <MudTextField @bind-Value="_reason" Label="Mandatory Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="4" Class="d-flex align-center">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="_saving" OnClick="RecordAsync">
+                    <LoadingButtonContent Loading="_saving" Text="Record Entry" LoadingText="Saving..." />
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @if (_inspectTarget is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FFF9EE; border-color:#D99B26; border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-2">Inspect Customer Return — @_inspectTarget.ReferenceNumber (@_inspectTarget.ProductName × @_inspectTarget.Quantity.ToString("0.##"))</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_inspectOutcome" Label="Inspection Decision" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="InspectionOutcome.RestockedToSellable">Pass — Restore to Sellable Stock</MudSelectItem>
+                        <MudSelectItem Value="InspectionOutcome.DisposedAsLoss">Fail — Dispose as Unsellable Loss</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_inspectNotes" Label="Inspection Notes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_inspecting" OnClick="SubmitInspectionAsync">
+                    <LoadingButtonContent Loading="_inspecting" Text="Confirm Inspection" LoadingText="Saving..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_inspecting" OnClick="@(() => _inspectTarget = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_initialLoading)
+    {
+        <PageLoadingSkeleton Variant="Table" Rows="6" />
+    }
+    else
+    {
+    <MudPaper Elevation="0" Outlined="true" Style="border-radius:14px;">
+        <MudTable Items="_records" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+            <HeaderContent>
+                <MudTh>Ref #</MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Location</MudTh>
+                <MudTh>Category</MudTh>
+                <MudTh>Item</MudTh>
+                <MudTh Style="text-align:right;">Qty</MudTh>
+                <MudTh>Outcome</MudTh>
+                <MudTh>Reason</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Ref #">@context.ReferenceNumber</MudTd>
+                <MudTd DataLabel="Date">@context.RecordedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                <MudTd DataLabel="Location">@context.Location</MudTd>
+                <MudTd DataLabel="Category">@context.Category</MudTd>
+                <MudTd DataLabel="Item">@(context.ProductName ?? context.RawMaterialName ?? "-")</MudTd>
+                <MudTd DataLabel="Qty" Style="text-align:right;" Class="tabular-nums">@context.Quantity.ToString("0.##")</MudTd>
+                <MudTd DataLabel="Outcome"><StockStatusChip Status="@context.InspectionOutcome.ToString()" /></MudTd>
+                <MudTd DataLabel="Reason">@context.Reason</MudTd>
+                <MudTd DataLabel="Actions">
+                    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="inspAuth">
+                        @if (context.Category == WasteReturnCategory.CustomerReturn && context.InspectionOutcome == InspectionOutcome.PendingInspection)
+                        {
+                            <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => { _inspectTarget = context; _inspectNotes = string.Empty; })">
+                                Inspect
+                            </MudButton>
+                        }
+                    </AuthorizeView>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No returns or waste records found.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Returns & Waste", null, true)];
+    private List<WasteAndReturnDto> _records = [];
+    private List<ProductDto> _products = [];
+    private List<RawMaterialDto> _materials = [];
+    private List<FactoryStockLotDto> _lots = [];
+    private bool _canStore;
+    private bool _canFactory;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+    private bool _inspecting;
+
+    private InventoryLocation _location = InventoryLocation.Store;
+    private WasteReturnCategory _category = WasteReturnCategory.Damaged;
+    private int? _productId;
+    private int? _rawMaterialId;
+    private long? _lotId;
+    private decimal _quantity = 1m;
+    private string _reason = string.Empty;
+
+    private WasteAndReturnDto? _inspectTarget;
+    private InspectionOutcome _inspectOutcome = InspectionOutcome.RestockedToSellable;
+    private string _inspectNotes = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
+            _canStore = user.IsInRole(AppRoles.Owner) || user.IsInRole(AppRoles.Manager) || user.IsInRole(AppRoles.Cashier);
+            _canFactory = user.IsInRole(AppRoles.Owner) || user.IsInRole(AppRoles.Manager) || user.IsInRole(AppRoles.Baker);
+            if (!_canStore && _canFactory) _location = InventoryLocation.Factory;
+
+            _products = (await ProductService.GetPagedAsync(new ProductQuery(PageSize: 200))).Items.ToList();
+            _productId = _products.FirstOrDefault()?.Id;
+
+            if (_canFactory)
+            {
+                _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
+                _lots = (await FactoryService.GetLotsPagedAsync(new FactoryLotQuery(OnlyAvailable: true, PageSize: 100))).Items.ToList();
+            }
+
+            await LoadAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _records = (await WasteService.GetPagedAsync(new WasteAndReturnQuery(PageSize: 100))).Items.ToList();
+        }
+        finally { _loading = false; }
+    }
+
+    private async Task RecordAsync()
+    {
+        if (_saving) return;
+        _saving = true;
+        try
+        {
+            await WasteService.RecordAsync(new RecordWasteOrReturnRequest(
+                _location,
+                _location == InventoryLocation.Store ? _productId : null,
+                _location == InventoryLocation.Factory && _lotId is null ? _rawMaterialId : null,
+                _location == InventoryLocation.Factory ? _lotId : null,
+                null,
+                _category,
+                _quantity,
+                _reason));
+            Snackbar.Add("Record saved.", Severity.Success);
+            _reason = string.Empty;
+            _quantity = 1m;
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task SubmitInspectionAsync()
+    {
+        if (_inspectTarget is null || _inspecting) return;
+        _inspecting = true;
+        try
+        {
+            await WasteService.InspectCustomerReturnAsync(_inspectTarget.Id, new InspectCustomerReturnRequest(_inspectOutcome, _inspectNotes));
+            Snackbar.Add("Customer return inspection recorded.", Severity.Success);
+            _inspectTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _inspecting = false; }
+    }
+}

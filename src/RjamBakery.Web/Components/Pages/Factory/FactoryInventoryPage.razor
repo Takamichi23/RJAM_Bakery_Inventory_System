@@ -1,0 +1,165 @@
+@page "/factory-inventory"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IFactoryInventoryService FactoryInventoryService
+@inject ISnackbar Snackbar
+
+<PageTitle>Factory Inventory - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Factory Finished Goods Inventory"
+            Subtitle="Monitor baked products stored in the factory with FEFO / FIFO batch traceability."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-3 pa-sm-4" Style="background:#FFFFFF; border-radius:14px;">
+    <MudTabPanel Text="Product Summary">
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="_search" Placeholder="Search SKU or product..." Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudButton Variant="Variant.Outlined" Disabled="@(_loading && !_initialLoading)" OnClick="LoadAsync">
+                    <LoadingButtonContent Loading="@(_loading && !_initialLoading)" Text="Filter" LoadingText="Filtering..." />
+                </MudButton>
+            </MudStack>
+            @if (_initialLoading)
+            {
+                <PageLoadingSkeleton Variant="Table" Rows="5" />
+            }
+            else
+            {
+            <MudTable Items="_summary" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+                <HeaderContent>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Product</MudTh>
+                    <MudTh Style="text-align:right;">Remaining</MudTh>
+                    <MudTh Style="text-align:right;">Reserved</MudTh>
+                    <MudTh Style="text-align:right;">Available</MudTh>
+                    <MudTh>Earliest Expiry</MudTh>
+                    <MudTh>Status</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="SKU">@context.ProductSku</MudTd>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Remaining" Style="text-align:right;" Class="tabular-nums">@context.TotalRemainingQuantity.ToString("0.##") @context.UnitCode</MudTd>
+                    <MudTd DataLabel="Reserved" Style="text-align:right;" Class="tabular-nums">@context.TotalReservedQuantity.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="Available" Style="text-align:right;" Class="tabular-nums"><strong>@context.TotalAvailableQuantity.ToString("0.##") @context.UnitCode</strong></MudTd>
+                    <MudTd DataLabel="Earliest Expiry">@(context.EarliestExpirationDate?.ToString("yyyy-MM-dd") ?? "-")</MudTd>
+                    <MudTd DataLabel="Status"><StockStatusChip Status="@context.StockStatus" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+            }
+        </MudStack>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Stock Lots (FEFO / FIFO)">
+        <MudStack Spacing="3">
+            @if (_targetLot is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6">Update Lot Status — @_targetLot.LotNumber (@_targetLot.ProductName)</MudText>
+                    <MudGrid Class="mt-2" Spacing="2">
+                        <MudItem xs="12" sm="4">
+                            <MudSelect @bind-Value="_lotTargetStatus" Label="New Status" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelectItem Value="FactoryLotStatus.Expired">Expired (Write Off)</MudSelectItem>
+                                <MudSelectItem Value="FactoryLotStatus.Quarantined">Quarantined (Write Off)</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_lotReason" Label="Mandatory Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="_saving" OnClick="ConfirmLotStatusAsync">
+                            <LoadingButtonContent Loading="_saving" Text="Confirm Write-Off" LoadingText="Saving..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _targetLot = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <MudTable Items="_lots" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Lot #</MudTh>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Produced</MudTh>
+                    <MudTh>Expiration</MudTh>
+                    <MudTh Style="text-align:right;">Remaining</MudTh>
+                    <MudTh Style="text-align:right;">Available</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Lot #" Class="tabular-nums">@context.LotNumber</MudTd>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Produced">@context.ProductionDate.ToString("yyyy-MM-dd")</MudTd>
+                    <MudTd DataLabel="Expiration">@(context.ExpirationDate?.ToString("yyyy-MM-dd") ?? "-")</MudTd>
+                    <MudTd DataLabel="Remaining" Style="text-align:right;" Class="tabular-nums">@context.RemainingQuantity.ToString("0.##") @context.UnitCode</MudTd>
+                    <MudTd DataLabel="Available" Style="text-align:right;" Class="tabular-nums">@context.AvailableQuantity.ToString("0.##") @context.UnitCode</MudTd>
+                    <MudTd DataLabel="Status"><StockStatusChip Status="@context.DisplayStatus" /></MudTd>
+                    <MudTd DataLabel="Actions">
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="lotAuth">
+                            @if (context.Status == FactoryLotStatus.Available && context.RemainingQuantity > 0)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => { _targetLot = context; _lotReason = string.Empty; })">
+                                    Expire / Quarantine
+                                </MudButton>
+                            }
+                        </AuthorizeView>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudStack>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Factory Inventory", null, true)];
+    private List<FactoryProductSummaryDto> _summary = [];
+    private List<FactoryStockLotDto> _lots = [];
+    private string? _search;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+
+    private FactoryStockLotDto? _targetLot;
+    private FactoryLotStatus _lotTargetStatus = FactoryLotStatus.Expired;
+    private string _lotReason = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _initialLoading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _summary = (await FactoryInventoryService.GetProductSummaryAsync(_search)).ToList();
+            _lots = (await FactoryInventoryService.GetLotsPagedAsync(new FactoryLotQuery(PageSize: 100))).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ConfirmLotStatusAsync()
+    {
+        if (_targetLot is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await FactoryInventoryService.MarkLotExpiredOrQuarantinedAsync(_targetLot.Id, _lotTargetStatus, _lotReason);
+            Snackbar.Add($"Lot {_targetLot.LotNumber} updated.", Severity.Info);
+            _targetLot = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+}

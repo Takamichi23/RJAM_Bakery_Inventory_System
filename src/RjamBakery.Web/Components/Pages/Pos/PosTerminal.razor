@@ -1,0 +1,611 @@
+@page "/pos"
+@implements IAsyncDisposable
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Common
+@using RjamBakery.Domain.Enums
+@inject IPosService PosService
+@inject ICategoryService CategoryService
+@inject ISystemSettingService SettingService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+@inject IJSRuntime JS
+
+<PageTitle>Point of Sale - RJAM Bakery</PageTitle>
+
+<MudGrid Spacing="3">
+    <!-- Product Selection Area (Inspired by Reference Grid + Clean Operational Density) -->
+    <MudItem xs="12" md="7" lg="8">
+        <MudPaper Elevation="0" Outlined="true" Class="pa-3 pa-sm-4 mb-4" Style="border-radius:14px;">
+            <MudStack Spacing="3">
+                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
+                        <MudText Typo="Typo.h5" Color="Color.Secondary">Point of Sale</MudText>
+                        <MudChip T="string"
+                                 Size="Size.Small"
+                                 Variant="Variant.Outlined"
+                                 Color="@(_offlineState.IsOnline ? Color.Success : Color.Warning)">
+                            @(_offlineState.IsOnline ? "Online · Offline Ready" : "Offline")
+                        </MudChip>
+                    </MudStack>
+                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                        @if (_offlineState.PendingCount > 0 || _offlineState.ConflictCount > 0)
+                        {
+                            <MudButton Variant="Variant.Filled"
+                                       Color="@(_offlineState.ConflictCount > 0 ? Color.Error : Color.Warning)"
+                                       Size="Size.Small"
+                                       Disabled="_syncingOffline"
+                                       OnClick="SyncOfflineQueueAsync"
+                                       StartIcon="@Icons.Material.Filled.Sync">
+                                <LoadingButtonContent Loading="_syncingOffline"
+                                                      Text="@($"Sync Queue ({_offlineState.PendingCount + _offlineState.ConflictCount})")"
+                                                      LoadingText="Syncing..." />
+                            </MudButton>
+                        }
+                        <MudButton Variant="Variant.Outlined"
+                                   Color="Color.Secondary"
+                                   Size="Size.Small"
+                                   OnClick="@(() => OpenOfflineOverlayAsync("queue"))"
+                                   StartIcon="@Icons.Material.Filled.CloudDone">
+                            Offline Queue
+                        </MudButton>
+                        @if (_cart.Count > 0)
+                        {
+                            <MudButton Href="#pos-current-order" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="d-md-none" StartIcon="@Icons.Material.Filled.ShoppingBag">
+                                Order (@_cart.Count · @_currencySymbol@TotalAmount.ToString("N2"))
+                            </MudButton>
+                        }
+                        <MudButton Href="/sales-history" Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.History">
+                            Sales History
+                        </MudButton>
+                    </MudStack>
+                </MudStack>
+
+                <MudTextField @bind-Value="_searchTerm"
+                              Placeholder="Search product name or SKU..."
+                              Adornment="Adornment.Start"
+                              AdornmentIcon="@Icons.Material.Filled.Search"
+                              Variant="Variant.Outlined"
+                              Margin="Margin.Dense"
+                              Immediate="true"
+                              DebounceInterval="150"
+                              OnDebounceIntervalElapsed="LoadCatalogAsync" />
+
+                <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                    <MudChip T="string"
+                             Color="@(_selectedCategoryId is null ? Color.Primary : Color.Default)"
+                             Variant="@(_selectedCategoryId is null ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => SelectCategoryAsync(null))">
+                        All Items
+                    </MudChip>
+                    @foreach (var cat in _categories)
+                    {
+                        <MudChip T="string"
+                                 Color="@(_selectedCategoryId == cat.Id ? Color.Primary : Color.Default)"
+                                 Variant="@(_selectedCategoryId == cat.Id ? Variant.Filled : Variant.Outlined)"
+                                 OnClick="@(() => SelectCategoryAsync(cat.Id))">
+                            @cat.Name
+                        </MudChip>
+                    }
+                </MudStack>
+            </MudStack>
+        </MudPaper>
+
+        @if (_initialLoading)
+        {
+            <PageLoadingSkeleton Variant="Pos" />
+        }
+        else if (_loadingCatalog)
+        {
+            <MudProgressLinear Color="Color.Primary" Indeterminate="true" Class="mb-3" />
+        }
+
+        @if (_catalog.Count == 0 && !_loadingCatalog && !_initialLoading)
+        {
+            <MudPaper Elevation="0" Outlined="true" Class="pa-8 d-flex flex-column align-center justify-center" Style="border-radius:14px;">
+                <MudIcon Icon="@Icons.Material.Outlined.BakeryDining" Size="Size.Large" Color="Color.Tertiary" />
+                @if (!string.IsNullOrWhiteSpace(_searchTerm) || _selectedCategoryId is not null)
+                {
+                    <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mt-2">No matching bakery products found</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Align="Align.Center">Try clearing your search filter or switching categories.</MudText>
+                }
+                else
+                {
+                    <MudText Typo="Typo.subtitle1" Align="Align.Center" Class="mt-2">No sellable bakery products available</MudText>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Align="Align.Center">Add products in Products &amp; Categories and transfer stock to the store first.</MudText>
+                }
+            </MudPaper>
+        }
+        else
+        {
+            <MudGrid Spacing="3">
+                @foreach (var item in _catalog)
+                {
+                    var inCartQty = _cart.FirstOrDefault(c => c.ProductId == item.ProductId)?.Quantity ?? 0m;
+                    var remainingSelectable = item.AvailableStoreStock - inCartQty;
+                    var isOut = item.AvailableStoreStock <= 0m;
+
+                    <MudItem xs="12" sm="6" lg="4">
+                        <MudPaper Elevation="0" Outlined="true" Class="pa-3 d-flex flex-column justify-space-between" Style="height:100%; border-radius:14px;">
+                            <div>
+                                <div class="d-flex align-center justify-center mb-3"
+                                     style="background-color:#FBF7F3; border-radius:10px; height:120px; position:relative; overflow:hidden;">
+                                    @if (!string.IsNullOrWhiteSpace(item.ImagePath))
+                                    {
+                                        <img src="@item.ImagePath" alt="@item.Name" style="max-height:104px; max-width:90%; object-fit:contain;" />
+                                    }
+                                    else
+                                    {
+                                        <MudIcon Icon="@Icons.Material.Outlined.BakeryDining" Style="font-size:3rem; color:#C88A55;" />
+                                    }
+                                    <MudChip T="string"
+                                             Size="Size.Small"
+                                             Variant="Variant.Filled"
+                                             Color="@GetStockColor(item.AvailableStoreStock, item.MinStockLevel)"
+                                             Style="position:absolute; top:8px; right:8px;">
+                                        @item.AvailableStoreStock.ToString("0.##") @item.UnitCode
+                                    </MudChip>
+                                </div>
+
+                                <MudText Typo="Typo.subtitle2" Style="font-weight:700; text-transform:uppercase; letter-spacing:0.02em; color:#2E1C16;">
+                                    @item.Name
+                                </MudText>
+                                <MudText Typo="Typo.caption" Color="Color.Tertiary" Class="d-block mb-2" Style="min-height:32px;">
+                                    @(string.IsNullOrWhiteSpace(item.Description) ? item.Sku : item.Description)
+                                </MudText>
+                            </div>
+
+                            <div class="d-flex align-center justify-space-between pt-2" style="border-top:1px solid #F0E6DD;">
+                                <MudText Typo="Typo.subtitle1" Class="tabular-nums" Style="font-weight:700; color:#2E1C16;">
+                                    @_currencySymbol@item.SellingPrice.ToString("N2")
+                                </MudText>
+                                <MudButton Variant="Variant.Outlined"
+                                           Color="Color.Primary"
+                                           Size="Size.Small"
+                                           Disabled="@(isOut || remainingSelectable <= 0m)"
+                                           OnClick="@(() => AddToCart(item))">
+                                    @(isOut ? "Sold Out" : "Add to cart")
+                                </MudButton>
+                            </div>
+                        </MudPaper>
+                    </MudItem>
+                }
+            </MudGrid>
+        }
+    </MudItem>
+
+    <!-- Shopping Cart & Payment Sidebar -->
+    <MudItem xs="12" md="5" lg="4" id="pos-current-order">
+        <MudPaper Elevation="0" Outlined="true" Class="pa-3 pa-sm-4 rjam-pos-cart">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-3">
+                <MudText Typo="Typo.h6" Color="Color.Secondary">Current Order</MudText>
+                @if (_cart.Count > 0)
+                {
+                    <MudButton Variant="Variant.Text" Size="Size.Small" Color="Color.Error" OnClick="ClearCart">
+                        Clear
+                    </MudButton>
+                }
+            </MudStack>
+
+            @if (_cart.Count == 0)
+            {
+                <div class="pa-6 d-flex flex-column align-center justify-center" style="background:#FBF7F3; border-radius:10px;">
+                    <MudIcon Icon="@Icons.Material.Outlined.ShoppingBag" Color="Color.Tertiary" Size="Size.Medium" />
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Align="Align.Center" Class="mt-2">
+                        Select bakery items to start checkout.
+                    </MudText>
+                </div>
+            }
+            else
+            {
+                <MudStack Spacing="2" Class="mb-4" Style="max-height:300px; overflow-y:auto;">
+                    @foreach (var line in _cart)
+                    {
+                        <div class="pa-2" style="background:#FBF7F3; border-radius:8px; border:1px solid #EAE0D7;">
+                            <div class="d-flex justify-space-between align-center">
+                                <MudText Typo="Typo.body2" Style="font-weight:600;">@line.Name</MudText>
+                                <MudIconButton Icon="@Icons.Material.Filled.Close"
+                                               Size="Size.Small"
+                                               aria-label="Remove item"
+                                               OnClick="@(() => RemoveFromCart(line.ProductId))" />
+                            </div>
+                            <div class="d-flex justify-space-between align-center mt-1">
+                                <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="1">
+                                    <MudIconButton Icon="@Icons.Material.Filled.Remove"
+                                                   Size="Size.Small"
+                                                   Variant="Variant.Outlined"
+                                                   aria-label="Decrease quantity"
+                                                   OnClick="@(() => ChangeQuantity(line.ProductId, -1))" />
+                                    <MudText Typo="Typo.body2" Class="px-2 tabular-nums">@line.Quantity.ToString("0.##")</MudText>
+                                    <MudIconButton Icon="@Icons.Material.Filled.Add"
+                                                   Size="Size.Small"
+                                                   Variant="Variant.Outlined"
+                                                   aria-label="Increase quantity"
+                                                   Disabled="@(line.Quantity >= line.MaxStock)"
+                                                   OnClick="@(() => ChangeQuantity(line.ProductId, 1))" />
+                                </MudStack>
+                                <MudText Typo="Typo.body2" Class="tabular-nums" Style="font-weight:600;">
+                                    @_currencySymbol@((line.UnitPrice * line.Quantity).ToString("N2"))
+                                </MudText>
+                            </div>
+                        </div>
+                    }
+                </MudStack>
+
+                <MudDivider Class="my-3" />
+
+                <MudStack Spacing="2">
+                    <div class="d-flex justify-space-between">
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Subtotal</MudText>
+                        <MudText Typo="Typo.body2" Class="tabular-nums">@_currencySymbol@SubTotal.ToString("N2")</MudText>
+                    </div>
+
+                    <MudNumericField @bind-Value="_discountAmount"
+                                     Label="Discount"
+                                     Min="0m"
+                                     Max="@SubTotal"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Adornment="Adornment.Start"
+                                     AdornmentText="@_currencySymbol" />
+
+                    <div class="d-flex justify-space-between py-2" style="border-top:1px solid #E6DBD1; border-bottom:1px solid #E6DBD1;">
+                        <MudText Typo="Typo.h6">Total</MudText>
+                        <MudText Typo="Typo.h6" Class="tabular-nums">@_currencySymbol@TotalAmount.ToString("N2")</MudText>
+                    </div>
+
+                    <MudSelect @bind-Value="_paymentMethod" Label="Payment Method" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="PaymentMethod.Cash">Cash</MudSelectItem>
+                        <MudSelectItem Value="PaymentMethod.GCash">GCash</MudSelectItem>
+                        <MudSelectItem Value="PaymentMethod.Card">Card</MudSelectItem>
+                        <MudSelectItem Value="PaymentMethod.BankTransfer">Bank Transfer</MudSelectItem>
+                    </MudSelect>
+
+                    <MudNumericField @bind-Value="_amountTendered"
+                                     Label="Amount Tendered"
+                                     Min="0m"
+                                     Variant="Variant.Outlined"
+                                     Margin="Margin.Dense"
+                                     Adornment="Adornment.Start"
+                                     AdornmentText="@_currencySymbol" />
+
+                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => _amountTendered = TotalAmount)">Exact</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => _amountTendered = TotalAmount + 50m)">+50</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => _amountTendered = TotalAmount + 100m)">+100</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => _amountTendered = TotalAmount + 500m)">+500</MudButton>
+                    </MudStack>
+
+                    <div class="d-flex justify-space-between mt-1">
+                        <MudText Typo="Typo.body2" Color="Color.Tertiary">Change</MudText>
+                        <MudText Typo="Typo.subtitle1"
+                                 Class="tabular-nums"
+                                 Color="@(_amountTendered < TotalAmount ? Color.Error : Color.Success)"
+                                 Style="font-weight:700;">
+                            @_currencySymbol@Math.Max(0m, _amountTendered - TotalAmount).ToString("N2")
+                        </MudText>
+                    </div>
+
+                    <MudButton Variant="Variant.Filled"
+                               Color="Color.Primary"
+                               FullWidth="true"
+                               Size="Size.Large"
+                               Disabled="@(_isSubmitting || _amountTendered < TotalAmount)"
+                               OnClick="CheckoutAsync">
+                        <LoadingButtonContent Loading="_isSubmitting" Text="Complete Sale & Print Receipt" LoadingText="Processing Sale..." />
+                    </MudButton>
+                </MudStack>
+            }
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private sealed class CartLine
+    {
+        public int ProductId { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public decimal UnitPrice { get; init; }
+        public decimal MaxStock { get; init; }
+        public decimal Quantity { get; set; }
+    }
+
+    public sealed class OfflinePosState
+    {
+        public bool IsOnline { get; set; } = true;
+        public int PendingCount { get; set; }
+        public int ConflictCount { get; set; }
+        public int SyncedCount { get; set; }
+        public int CachedItemCount { get; set; }
+        public int LastSyncedCount { get; set; }
+        public string? LastMessage { get; set; }
+    }
+
+    private List<CategoryDto> _categories = [];
+    private List<PosCatalogItemDto> _catalog = [];
+    private readonly List<CartLine> _cart = [];
+
+    private string _bakeryName = "RJAM Bakery";
+    private string _currencySymbol = "₱";
+    private string? _searchTerm;
+    private int? _selectedCategoryId;
+    private bool _initialLoading = true;
+    private bool _loadingCatalog = true;
+    private bool _isSubmitting;
+    private bool _syncingOffline;
+    private bool _jsAttached;
+    private bool _disposed;
+    private OfflinePosState _offlineState = new();
+    private DotNetObjectReference<PosTerminal>? _dotNetRef;
+
+    private decimal _discountAmount;
+    private decimal _amountTendered;
+    private PaymentMethod _paymentMethod = PaymentMethod.Cash;
+    private string _checkoutIdempotencyKey = Guid.NewGuid().ToString("N");
+
+    private decimal SubTotal => decimal.Round(_cart.Sum(c => c.UnitPrice * c.Quantity), 2, MidpointRounding.AwayFromZero);
+    private decimal TotalAmount => Math.Max(0m, decimal.Round(SubTotal - Math.Min(_discountAmount, SubTotal), 2, MidpointRounding.AwayFromZero));
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var config = await SettingService.GetOperationalConfigAsync();
+            _bakeryName = config.BakeryName;
+            _currencySymbol = config.CurrencySymbol;
+            _categories = (await CategoryService.GetAllAsync()).ToList();
+            await LoadCatalogAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        try
+        {
+            _dotNetRef = DotNetObjectReference.Create(this);
+            var state = await JS.InvokeAsync<OfflinePosState?>("RjamOfflinePos.attachPosPage", _dotNetRef);
+            if (state is not null)
+            {
+                _offlineState = state;
+            }
+            _jsAttached = true;
+            await CacheFullCatalogSnapshotAsync();
+            StateHasChanged();
+        }
+        catch
+        {
+            // Non-interactive prerender or test host without custom JS runtime
+        }
+    }
+
+    private async Task SelectCategoryAsync(int? categoryId)
+    {
+        _selectedCategoryId = categoryId;
+        await LoadCatalogAsync();
+    }
+
+    private async Task LoadCatalogAsync()
+    {
+        _loadingCatalog = true;
+        try
+        {
+            _catalog = (await PosService.GetPosCatalogAsync(_searchTerm, _selectedCategoryId)).ToList();
+            if (_jsAttached && string.IsNullOrWhiteSpace(_searchTerm) && _selectedCategoryId is null)
+            {
+                await CacheFullCatalogSnapshotAsync();
+            }
+        }
+        finally
+        {
+            _loadingCatalog = false;
+        }
+    }
+
+    private async Task CacheFullCatalogSnapshotAsync()
+    {
+        if (!_jsAttached || !string.IsNullOrWhiteSpace(_searchTerm) || _selectedCategoryId is not null) return;
+        try
+        {
+            var snapshot = new
+            {
+                bakeryName = _bakeryName,
+                currencySymbol = _currencySymbol,
+                categories = _categories.Select(c => new { id = c.Id, name = c.Name }).ToList(),
+                items = _catalog.Select(i => new
+                {
+                    productId = i.ProductId,
+                    sku = i.Sku,
+                    name = i.Name,
+                    description = i.Description,
+                    categoryId = i.CategoryId,
+                    categoryName = i.CategoryName,
+                    unitCode = i.UnitCode,
+                    sellingPrice = i.SellingPrice,
+                    imagePath = i.ImagePath,
+                    availableStoreStock = i.AvailableStoreStock,
+                    minStockLevel = i.MinStockLevel
+                }).ToList()
+            };
+            var updated = await JS.InvokeAsync<OfflinePosState?>("RjamOfflinePos.saveCatalogSnapshot", snapshot);
+            if (updated is not null)
+            {
+                _offlineState = updated;
+            }
+        }
+        catch
+        {
+            // Ignore safely if browser disconnects during snapshot save
+        }
+    }
+
+    private async Task SyncOfflineQueueAsync()
+    {
+        if (_syncingOffline) return;
+        _syncingOffline = true;
+        try
+        {
+            var result = await JS.InvokeAsync<OfflinePosState?>("RjamOfflinePos.syncNow");
+            if (result is not null)
+            {
+                _offlineState = result;
+                if (!string.IsNullOrWhiteSpace(result.LastMessage))
+                {
+                    var severity = result.ConflictCount > 0 ? Severity.Warning
+                        : result.LastSyncedCount > 0 ? Severity.Success
+                        : Severity.Info;
+                    Snackbar.Add(result.LastMessage, severity);
+                }
+                if (result.LastSyncedCount > 0)
+                {
+                    await LoadCatalogAsync();
+                }
+            }
+        }
+        catch
+        {
+            Snackbar.Add("Unable to sync while offline. Sales remain safely queued.", Severity.Warning);
+        }
+        finally
+        {
+            _syncingOffline = false;
+        }
+    }
+
+    private async Task OpenOfflineOverlayAsync(string tab)
+    {
+        try
+        {
+            await CacheFullCatalogSnapshotAsync();
+            await JS.InvokeVoidAsync("RjamOfflinePos.openOfflineOverlay", tab);
+        }
+        catch
+        {
+            // Safe no-op in bUnit
+        }
+    }
+
+    [JSInvokable]
+    public Task OnOfflineStateChanged(OfflinePosState state) => InvokeAsync(async () =>
+    {
+        if (_disposed) return;
+        _offlineState = state;
+        if (state.LastSyncedCount > 0)
+        {
+            Snackbar.Add($"Synced {state.LastSyncedCount} offline sale{(state.LastSyncedCount == 1 ? "" : "s")} to server.", Severity.Success);
+            await LoadCatalogAsync();
+        }
+        StateHasChanged();
+    });
+
+    private void AddToCart(PosCatalogItemDto item)
+    {
+        var existing = _cart.FirstOrDefault(c => c.ProductId == item.ProductId);
+        if (existing is null)
+        {
+            _cart.Add(new CartLine
+            {
+                ProductId = item.ProductId,
+                Name = item.Name,
+                UnitPrice = item.SellingPrice,
+                MaxStock = item.AvailableStoreStock,
+                Quantity = Math.Min(1m, item.AvailableStoreStock)
+            });
+        }
+        else if (existing.Quantity + 1m <= item.AvailableStoreStock)
+        {
+            existing.Quantity += 1m;
+        }
+
+        if (_amountTendered < TotalAmount)
+        {
+            _amountTendered = TotalAmount;
+        }
+    }
+
+    private void ChangeQuantity(int productId, decimal delta)
+    {
+        var line = _cart.FirstOrDefault(c => c.ProductId == productId);
+        if (line is null) return;
+
+        var next = line.Quantity + delta;
+        if (next <= 0m)
+        {
+            _cart.Remove(line);
+        }
+        else if (next <= line.MaxStock)
+        {
+            line.Quantity = next;
+        }
+    }
+
+    private void RemoveFromCart(int productId)
+    {
+        _cart.RemoveAll(c => c.ProductId == productId);
+    }
+
+    private void ClearCart()
+    {
+        _cart.Clear();
+        _discountAmount = 0m;
+        _amountTendered = 0m;
+        _checkoutIdempotencyKey = Guid.NewGuid().ToString("N");
+    }
+
+    private async Task CheckoutAsync()
+    {
+        if (_isSubmitting || _cart.Count == 0) return;
+
+        _isSubmitting = true;
+        try
+        {
+            var request = new CompletePosSaleRequest(
+                ClientIdempotencyKey: _checkoutIdempotencyKey,
+                PaymentMethod: _paymentMethod,
+                DiscountAmount: _discountAmount,
+                AmountTendered: _amountTendered,
+                Items: _cart.Select(c => new PosSaleItemInput(c.ProductId, c.Quantity)).ToList());
+
+            var receipt = await PosService.CompleteSaleAsync(request);
+            await LoadCatalogAsync();
+            ClearCart();
+            Snackbar.Add($"Sale {receipt.Transaction.ReceiptNumber} completed.", Severity.Success);
+
+            var parameters = new DialogParameters<PosReceiptDialog> { { x => x.Receipt, receipt } };
+            await DialogService.ShowAsync<PosReceiptDialog>("Receipt", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+            await LoadCatalogAsync();
+        }
+        finally
+        {
+            _isSubmitting = false;
+        }
+    }
+
+    private static Color GetStockColor(decimal available, decimal minLevel)
+    {
+        if (available <= 0m) return Color.Error;
+        if (available <= minLevel) return Color.Warning;
+        return Color.Success;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        _disposed = true;
+        if (_jsAttached)
+        {
+            try { await JS.InvokeVoidAsync("RjamOfflinePos.detachPosPage"); }
+            catch { }
+        }
+        _dotNetRef?.Dispose();
+    }
+}

@@ -1,0 +1,168 @@
+@page "/Account/Login"
+@layout RjamBakery.Web.Components.Layout.AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Entities
+@using RjamBakery.Infrastructure.Persistence
+@using RjamBakery.Web.Security
+
+@inject SignInManager<ApplicationUser> SignInManager
+@inject UserManager<ApplicationUser> UserManager
+@inject AppDbContext Db
+@inject IAuditLogService Audit
+@inject ILogger<Login> Logger
+@inject NavigationManager Navigation
+
+<h2 style="margin:0 0 6px 0; font-size:1.25rem; color:#2E1C16;">Sign In</h2>
+<p style="margin:0 0 20px 0; font-size:0.85rem; color:#6F5B53;">
+    Enter your RJAM Bakery staff credentials to continue.
+</p>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="auth-alert-error" role="alert">@_errorMessage</div>
+}
+
+<EditForm Model="Input" method="post" FormName="LoginForm" OnValidSubmit="HandleLoginAsync" class="auth-submit-form" data-loading-text="Signing in to RJAM Bakery...">
+    <DataAnnotationsValidator />
+    <ValidationSummary style="color:#B84A39; font-size:0.82rem; margin-bottom:12px;" />
+
+    <div class="auth-field">
+        <label class="auth-label" for="username">Username</label>
+        <InputText id="username" class="auth-input" @bind-Value="Input.UserName" autocomplete="username" maxlength="50" />
+    </div>
+
+    <div class="auth-field">
+        <label class="auth-label" for="password">Password</label>
+        <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" autocomplete="current-password" maxlength="128" />
+    </div>
+
+    <div class="auth-field" style="display:flex; align-items:center; gap:8px;">
+        <InputCheckbox id="remember" @bind-Value="Input.RememberMe" />
+        <label for="remember" style="font-size:0.84rem; color:#6F5B53;">Keep me signed in on this workstation</label>
+    </div>
+
+    <button type="submit" class="auth-btn">Sign In</button>
+</EditForm>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    [SupplyParameterFromQuery]
+    public string? ReturnUrl { get; set; }
+
+    [SupplyParameterFromForm]
+    private LoginInputModel Input { get; set; } = new();
+
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (!await Db.Users.AsNoTracking().AnyAsync())
+        {
+            Navigation.NavigateTo("/Account/Setup", replace: true);
+        }
+    }
+
+    private async Task HandleLoginAsync()
+    {
+        var remoteIp = HttpContext?.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+        var trimmedUser = Input.UserName.Trim();
+        var user = await UserManager.FindByNameAsync(trimmedUser);
+        if (user is null)
+        {
+            Logger.LogWarning("Failed web login for unknown username '{UserName}' from {RemoteIp}.", trimmedUser, remoteIp);
+            _errorMessage = "Invalid username or password.";
+            return;
+        }
+
+        if (!user.IsActive)
+        {
+            Logger.LogWarning("Blocked web login for deactivated user '{UserName}' from {RemoteIp}.", user.UserName, remoteIp);
+            await Audit.AddAuditEntryAsync(
+                "UserLoginBlocked",
+                nameof(ApplicationUser),
+                user.Id,
+                $"Deactivated account '{user.UserName}' attempted web login.",
+                explicitUserId: user.Id,
+                explicitUserName: user.UserName ?? string.Empty,
+                explicitUserRole: "Inactive");
+            await Db.SaveChangesAsync();
+            _errorMessage = "Invalid username or password.";
+            return;
+        }
+
+        var result = await SignInManager.PasswordSignInAsync(user, Input.Password, Input.RememberMe, lockoutOnFailure: true);
+        if (result.IsLockedOut)
+        {
+            var rolesOnLock = await UserManager.GetRolesAsync(user);
+            Logger.LogWarning("Web login locked out for user '{UserName}' from {RemoteIp}.", user.UserName, remoteIp);
+            await Audit.AddAuditEntryAsync(
+                "UserLoginLockedOut",
+                nameof(ApplicationUser),
+                user.Id,
+                $"Account '{user.UserName}' locked out after repeated failed web login attempts.",
+                explicitUserId: user.Id,
+                explicitUserName: user.UserName ?? string.Empty,
+                explicitUserRole: rolesOnLock.FirstOrDefault() ?? "Staff");
+            await Db.SaveChangesAsync();
+            _errorMessage = "Account temporarily locked after repeated failed login attempts. Please try again later.";
+            return;
+        }
+
+        if (!result.Succeeded)
+        {
+            var rolesOnFail = await UserManager.GetRolesAsync(user);
+            Logger.LogWarning("Invalid web login password for user '{UserName}' from {RemoteIp}.", user.UserName, remoteIp);
+            await Audit.AddAuditEntryAsync(
+                "UserLoginFailed",
+                nameof(ApplicationUser),
+                user.Id,
+                $"Invalid web login password entered for '{user.UserName}'.",
+                explicitUserId: user.Id,
+                explicitUserName: user.UserName ?? string.Empty,
+                explicitUserRole: rolesOnFail.FirstOrDefault() ?? "Staff");
+            await Db.SaveChangesAsync();
+            _errorMessage = "Invalid username or password.";
+            return;
+        }
+
+        user.LastLoginAt = DateTime.UtcNow;
+        await UserManager.UpdateAsync(user);
+        var roles = await UserManager.GetRolesAsync(user);
+
+        await Audit.AddAuditEntryAsync(
+            "UserLogin",
+            nameof(ApplicationUser),
+            user.Id,
+            $"User '{user.UserName}' signed in via web login.",
+            explicitUserId: user.Id,
+            explicitUserName: user.UserName ?? string.Empty,
+            explicitUserRole: roles.FirstOrDefault() ?? "Staff");
+        await Db.SaveChangesAsync();
+
+        var safeTarget = SecurityUrlHelper.GetSafeLocalReturnUrl(ReturnUrl);
+        if (user.MustChangePassword)
+        {
+            var encodedReturn = Uri.EscapeDataString(safeTarget);
+            Navigation.NavigateTo($"/Account/ChangePassword?forced=true&ReturnUrl={encodedReturn}", forceLoad: true);
+            return;
+        }
+
+        Navigation.NavigateTo(safeTarget, forceLoad: true);
+    }
+
+    private sealed class LoginInputModel
+    {
+        [Required, MaxLength(50)]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required, MaxLength(128)]
+        public string Password { get; set; } = string.Empty;
+
+        public bool RememberMe { get; set; }
+    }
+}

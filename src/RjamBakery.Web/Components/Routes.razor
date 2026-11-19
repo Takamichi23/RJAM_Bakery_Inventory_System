@@ -1,0 +1,40 @@
+@using Microsoft.AspNetCore.Components.Authorization
+
+<Router AppAssembly="typeof(Program).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <Authorizing>
+                <BrandLoadingScreen Message="Verifying your bakery session..." />
+            </Authorizing>
+            <NotAuthorized>
+                @if (context.User.Identity?.IsAuthenticated != true)
+                {
+                    <RedirectToLogin />
+                }
+                else
+                {
+                    <LayoutView Layout="typeof(Layout.MainLayout)">
+                        <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Class="ma-4">
+                            You do not have permission to access this module.
+                        </MudAlert>
+                    </LayoutView>
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <FocusOnNavigate RouteData="routeData" Selector="h1" />
+    </Found>
+    <NotFound>
+        <AuthorizeView>
+            <Authorized>
+                <LayoutView Layout="typeof(Layout.MainLayout)">
+                    <NotFoundScreen IsAuthenticated="true" />
+                </LayoutView>
+            </Authorized>
+            <NotAuthorized>
+                <div class="auth-shell">
+                    <NotFoundScreen IsAuthenticated="false" />
+                </div>
+            </NotAuthorized>
+        </AuthorizeView>
+    </NotFound>
+</Router>

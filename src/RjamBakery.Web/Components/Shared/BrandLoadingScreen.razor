@@ -1,0 +1,13 @@
+<div class="rjam-splash-screen" role="status" aria-live="polite">
+    <div class="rjam-splash-card">
+        <img src="images/rjam-logo.png" alt="RJAM Bakery" class="rjam-splash-logo" />
+        <div class="rjam-splash-bar">
+            <div class="rjam-splash-bar-fill"></div>
+        </div>
+        <div class="rjam-splash-text">@Message</div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public string Message { get; set; } = "Warming up RJAM Bakery...";
+}

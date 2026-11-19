@@ -1,0 +1,338 @@
+@page "/raw-materials"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IRawMaterialService RawMaterialService
+@inject IProductService ProductService
+@inject ISupplierService SupplierService
+@inject IInventoryLedgerService LedgerService
+@inject ISnackbar Snackbar
+
+<PageTitle>Raw Materials - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Raw Materials Inventory"
+            Subtitle="Track factory ingredients, minimum thresholds, unit conversions, and stock movements."
+            Breadcrumbs="_breadcrumbs">
+    <Actions>
+        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="_initialLoading" OnClick="NewMaterialAsync">
+                Add Raw Material
+            </MudButton>
+        </AuthorizeView>
+    </Actions>
+</PageHeader>
+
+<MudStack Spacing="4">
+    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:14px;">
+        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_search" Placeholder="Search SKU or ingredient..." Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudCheckBox @bind-Value="_lowOnly" Label="Low Stock Only" />
+            <MudCheckBox @bind-Value="_outOnly" Label="Out of Stock Only" />
+            <MudButton Variant="Variant.Outlined" Disabled="@(_loading && !_initialLoading)" OnClick="LoadAsync">
+                <LoadingButtonContent Loading="@(_loading && !_initialLoading)" Text="Filter" LoadingText="Filtering..." />
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+
+    @if (_editing is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3; border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-3">@(_editing.Id.HasValue ? "Edit Raw Material" : "Register Raw Material")</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_editing.Sku"
+                                  Label="SKU"
+                                  Variant="Variant.Outlined"
+                                  Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_editing.Name" Label="Material Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_editing.UnitId" Label="Stock Unit" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var u in _units)
+                        {
+                            <MudSelectItem Value="u.Id">@u.Name (@u.Code)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_editing.PackToBaseRatio" Label="Pack Ratio (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Min="0.0001m" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_editing.MinStockLevel" Label="Min Stock Level" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0m" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_editing.PreferredSupplierId" Label="Preferred Supplier" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" T="int?">
+                        @foreach (var s in _suppliers)
+                        {
+                            <MudSelectItem Value="@((int?)s.Id)">@s.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="_editing.Description" Label="Notes / Description" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveMaterialAsync">
+                    <LoadingButtonContent Loading="_saving" Text="Save Material" LoadingText="Saving..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _editing = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_adjustTarget is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3; border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-2">Stock Adjustment — @_adjustTarget.Name</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="3">
+                    <MudNumericField @bind-Value="_adjDelta" Label="Quantity Delta (+/-)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="3">
+                    <MudSelect @bind-Value="_adjUnitId" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        @foreach (var u in _units)
+                        {
+                            <MudSelectItem Value="u.Id">@u.Code (@u.Dimension)</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_adjReason" Label="Mandatory Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="2" Class="d-flex align-center">
+                    <MudCheckBox @bind-Value="_adjOpening" Label="Opening" />
+                </MudItem>
+            </MudGrid>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_adjusting" OnClick="ApplyAdjustmentAsync">
+                    <LoadingButtonContent Loading="_adjusting" Text="Apply Adjustment" LoadingText="Applying..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_adjusting" OnClick="@(() => _adjustTarget = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_initialLoading)
+    {
+        <PageLoadingSkeleton Variant="Table" Rows="6" />
+    }
+    else
+    {
+    <MudPaper Elevation="0" Outlined="true" Style="border-radius:14px;">
+        <MudTable Items="_materials" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+            <HeaderContent>
+                <MudTh>SKU</MudTh>
+                <MudTh>Ingredient</MudTh>
+                <MudTh>Supplier</MudTh>
+                <MudTh Style="text-align:right;">Available</MudTh>
+                <MudTh Style="text-align:right;">Min Level</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="SKU" Class="tabular-nums">@context.Sku</MudTd>
+                <MudTd DataLabel="Ingredient">@context.Name</MudTd>
+                <MudTd DataLabel="Supplier">@(context.PreferredSupplierName ?? "-")</MudTd>
+                <MudTd DataLabel="Available" Style="text-align:right;" Class="tabular-nums">@context.CurrentQuantity.ToString("0.####") @context.UnitCode</MudTd>
+                <MudTd DataLabel="Min Level" Style="text-align:right;" Class="tabular-nums">@context.MinStockLevel.ToString("0.##") @context.UnitCode</MudTd>
+                <MudTd DataLabel="Status"><StockStatusChip Status="@context.StockStatus" /></MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudStack Row="true" Spacing="1">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => LoadHistoryAsync(context))">History</MudButton>
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="authCtx">
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditMaterial(context))">Edit</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => OpenAdjust(context))">Adjust</MudButton>
+                        </AuthorizeView>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No raw materials found.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+    }
+
+    @if (_historyMaterial is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:14px;">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Class="mb-2">
+                <MudText Typo="Typo.h6">Movement History — @_historyMaterial.Name</MudText>
+                <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" OnClick="@(() => _historyMaterial = null)" />
+            </MudStack>
+            <MudTable Items="_history" Dense="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Type</MudTh>
+                    <MudTh>Ref #</MudTh>
+                    <MudTh Style="text-align:right;">Delta</MudTh>
+                    <MudTh Style="text-align:right;">Balance After</MudTh>
+                    <MudTh>Remarks</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Date">@context.OccurredAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Type">@context.MovementType</MudTd>
+                    <MudTd DataLabel="Ref #">@context.ReferenceNumber</MudTd>
+                    <MudTd DataLabel="Delta" Style="text-align:right;" Class="tabular-nums">@context.QuantityDelta.ToString("+0.####;-0.####") @context.UnitCode</MudTd>
+                    <MudTd DataLabel="Balance After" Style="text-align:right;" Class="tabular-nums">@context.NewQuantity.ToString("0.####") @context.UnitCode</MudTd>
+                    <MudTd DataLabel="Remarks">@context.Remarks</MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-3">No movements recorded for this material.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private sealed class MaterialForm
+    {
+        public int? Id { get; set; }
+        public string Sku { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int UnitId { get; set; }
+        public decimal? PackToBaseRatio { get; set; }
+        public decimal MinStockLevel { get; set; }
+        public int? PreferredSupplierId { get; set; }
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Raw Materials", null, true)];
+    private List<RawMaterialDto> _materials = [];
+    private List<UnitOfMeasureDto> _units = [];
+    private List<SupplierDto> _suppliers = [];
+    private string? _search;
+    private bool _lowOnly;
+    private bool _outOnly;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+    private bool _adjusting;
+
+    private MaterialForm? _editing;
+    private RawMaterialDto? _adjustTarget;
+    private decimal _adjDelta;
+    private int _adjUnitId;
+    private string _adjReason = string.Empty;
+    private bool _adjOpening;
+
+    private RawMaterialDto? _historyMaterial;
+    private List<InventoryMovementDto> _history = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
+            _suppliers = (await SupplierService.GetPagedAsync(pageSize: 200)).Items.ToList();
+            await LoadAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(_search, _lowOnly, _outOnly, false, 1, 200))).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task NewMaterialAsync()
+    {
+        var kg = _units.FirstOrDefault(u => u.Code == "kg")?.Id ?? _units.FirstOrDefault()?.Id ?? 1;
+        var nextSku = await RawMaterialService.GetNextSkuAsync();
+        _editing = new MaterialForm { Sku = nextSku, UnitId = kg };
+    }
+
+    private void EditMaterial(RawMaterialDto m)
+    {
+        _editing = new MaterialForm
+        {
+            Id = m.Id,
+            Sku = m.Sku,
+            Name = m.Name,
+            Description = m.Description,
+            UnitId = m.UnitId,
+            PackToBaseRatio = m.PackToBaseRatio,
+            MinStockLevel = m.MinStockLevel,
+            PreferredSupplierId = m.PreferredSupplierId
+        };
+    }
+
+    private async Task SaveMaterialAsync()
+    {
+        if (_editing is null || _saving) return;
+        _saving = true;
+        try
+        {
+            var saved = await RawMaterialService.SaveAsync(new SaveRawMaterialRequest(
+                _editing.Id, _editing.Sku, _editing.Name, _editing.Description, _editing.UnitId,
+                _editing.PackToBaseRatio, _editing.MinStockLevel, _editing.PreferredSupplierId));
+            await LoadAsync();
+            _editing = null;
+            Snackbar.Add($"Raw material '{saved.Name}' saved (SKU: {saved.Sku}).", Severity.Success);
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+
+    private void OpenAdjust(RawMaterialDto m)
+    {
+        _adjustTarget = m;
+        _adjUnitId = m.UnitId;
+        _adjDelta = 0m;
+        _adjReason = string.Empty;
+        _adjOpening = false;
+    }
+
+    private async Task ApplyAdjustmentAsync()
+    {
+        if (_adjustTarget is null || _adjusting) return;
+        _adjusting = true;
+        try
+        {
+            await RawMaterialService.AdjustStockAsync(new RawMaterialAdjustmentRequest(
+                _adjustTarget.Id, _adjDelta, _adjUnitId, _adjReason, IsOpeningStock: _adjOpening));
+            Snackbar.Add("Raw material stock updated.", Severity.Success);
+            _adjustTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _adjusting = false;
+        }
+    }
+
+    private async Task LoadHistoryAsync(RawMaterialDto m)
+    {
+        _historyMaterial = m;
+        _history = (await LedgerService.QueryMovementsAsync(new InventoryMovementQuery(
+            ItemType: InventoryItemType.RawMaterial,
+            RawMaterialId: m.Id,
+            PageSize: 50))).Items.ToList();
+    }
+}

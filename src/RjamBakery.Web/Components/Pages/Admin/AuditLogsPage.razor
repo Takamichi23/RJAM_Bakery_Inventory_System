@@ -1,0 +1,76 @@
+@page "/audit-logs"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@inject IAuditLogService AuditService
+
+<PageTitle>Audit Logs - RJAM Bakery</PageTitle>
+
+<PageHeader Title="System Audit Logs"
+            Subtitle="Immutable trail of inventory movements, production, deliveries, POS transactions, closings, and user changes."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudStack Spacing="4">
+    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:14px;">
+        <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+            <MudTextField @bind-Value="_actionFilter" Label="Action contains..." Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudTextField @bind-Value="_entityFilter" Label="Entity Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <MudButton Variant="Variant.Outlined" Disabled="_loading" OnClick="LoadAsync">
+                <LoadingButtonContent Loading="_loading" Text="Filter" LoadingText="Filtering..." />
+            </MudButton>
+        </MudStack>
+    </MudPaper>
+
+    @if (_initialLoading)
+    {
+        <PageLoadingSkeleton Variant="Table" Rows="6" />
+    }
+    else
+    {
+        <MudPaper Elevation="0" Outlined="true" Style="border-radius:14px;">
+        <MudTable Items="_logs" Dense="true" Hover="true" Elevation="0" Loading="_loading">
+            <HeaderContent>
+                <MudTh>Timestamp</MudTh>
+                <MudTh>User</MudTh>
+                <MudTh>Role</MudTh>
+                <MudTh>Action</MudTh>
+                <MudTh>Entity</MudTh>
+                <MudTh>Summary</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Timestamp" Class="tabular-nums">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss")</MudTd>
+                <MudTd DataLabel="User">@context.UserName</MudTd>
+                <MudTd DataLabel="Role">@context.UserRole</MudTd>
+                <MudTd DataLabel="Action"><strong>@context.Action</strong></MudTd>
+                <MudTd DataLabel="Entity">@context.EntityName (#@context.EntityId)</MudTd>
+                <MudTd DataLabel="Summary">@context.Summary</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Audit Logs", null, true)];
+    private List<AuditLogDto> _logs = [];
+    private string? _actionFilter;
+    private string? _entityFilter;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _initialLoading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _logs = (await AuditService.QueryAsync(new AuditLogQuery(null, _actionFilter, _entityFilter, null, null, 1, 100))).Items.ToList();
+        }
+        finally { _loading = false; }
+    }
+}

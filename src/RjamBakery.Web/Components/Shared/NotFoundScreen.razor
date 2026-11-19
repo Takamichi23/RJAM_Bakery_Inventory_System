@@ -1,0 +1,25 @@
+<div class="rjam-notfound-wrap">
+    <div class="rjam-notfound-card">
+        <img src="images/rjam-mark.png" alt="RJAM Bakery" style="height:46px; width:auto; margin:0 auto 4px auto; display:block;" />
+        <div class="rjam-notfound-code">404</div>
+        <h2 class="rjam-notfound-title">Page Not Found</h2>
+        <p class="rjam-notfound-sub">
+            Sorry, this page is not on the RJAM Bakery menu or the link may have moved.
+        </p>
+        <div class="rjam-notfound-actions">
+            @if (IsAuthenticated)
+            {
+                <a href="/" class="rjam-btn-primary">Return to Dashboard</a>
+                <a href="/pos" class="rjam-btn-outlined">Open POS</a>
+            }
+            else
+            {
+                <a href="/Account/Login" class="rjam-btn-primary">Go to Sign In</a>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter] public bool IsAuthenticated { get; set; } = true;
+}

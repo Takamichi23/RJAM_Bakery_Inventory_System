@@ -1,0 +1,22 @@
+{
+  "name": "RJAM Bakery Management & POS",
+  "short_name": "RJAM POS",
+  "description": "RJAM Bakery Operations, Inventory, and Offline-Ready Cashier POS",
+  "start_url": "/pos",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F7F1EB",
+  "theme_color": "#2E1C16",
+  "icons": [
+    {
+      "src": "/images/rjam-favicon.png",
+      "sizes": "128x128",
+      "type": "image/png"
+    },
+    {
+      "src": "/images/rjam-mark.png",
+      "sizes": "166x237",
+      "type": "image/png"
+    }
+  ]
+}

@@ -1,0 +1,815 @@
+:root {
+    --rjam-espresso: #2E1C16;
+    --rjam-caramel: #C88A55;
+    --rjam-caramel-dark: #B37440;
+    --rjam-cream: #F7F1EB;
+    --rjam-surface: #FFFFFF;
+    --rjam-border: #E6DBD1;
+    --rjam-muted: #6F5B53;
+    --rjam-error: #B84A39;
+    --rjam-success: #3E7B5A;
+}
+
+body {
+    background-color: var(--rjam-cream);
+    color: var(--rjam-espresso);
+    font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, Roboto, sans-serif;
+    margin: 0;
+}
+
+.tabular-nums {
+    font-variant-numeric: tabular-nums;
+}
+
+.mud-button {
+    text-transform: none;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+}
+
+.rjam-drawer-scroll {
+    flex: 1 1 auto;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding-bottom: 12px;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(200, 138, 85, 0.35) transparent;
+}
+
+.rjam-nav-group {
+    font-size: 0.68rem !important;
+    letter-spacing: 0.08em;
+    color: rgba(247, 241, 235, 0.52);
+}
+
+.rjam-nav .mud-nav-link {
+    padding: 7px 14px !important;
+    margin: 1px 10px;
+    width: calc(100% - 20px);
+    border-radius: 8px;
+    font-size: 0.855rem;
+    transition: background-color 0.15s ease, color 0.15s ease;
+}
+
+.rjam-nav .mud-nav-link:hover {
+    background-color: rgba(247, 241, 235, 0.08) !important;
+    color: #FFFFFF !important;
+}
+
+.rjam-nav .mud-nav-link.active {
+    background-color: rgba(200, 138, 85, 0.22) !important;
+    color: #FFFFFF !important;
+    font-weight: 600;
+    box-shadow: inset 3px 0 0 #C88A55;
+}
+
+.rjam-nav .mud-nav-link.active .mud-nav-link-icon {
+    color: #DFAA7D !important;
+}
+
+.auth-shell {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-color: var(--rjam-cream);
+}
+
+.auth-card {
+    width: 100%;
+    max-width: 420px;
+    background-color: var(--rjam-surface);
+    border: 1px solid var(--rjam-border);
+    border-radius: 14px;
+    padding: 32px;
+}
+
+.auth-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 24px;
+}
+
+.auth-brand--logo {
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+}
+
+.auth-brand-logo {
+    height: 68px;
+    width: auto;
+    display: block;
+}
+
+.auth-brand-mark {
+    width: 42px;
+    height: 42px;
+    border-radius: 10px;
+    background-color: var(--rjam-espresso);
+    color: var(--rjam-caramel);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+
+.auth-brand-title {
+    font-weight: 700;
+    font-size: 1.05rem;
+    letter-spacing: 0.04em;
+    color: var(--rjam-espresso);
+}
+
+.auth-brand-sub {
+    font-size: 0.8rem;
+    color: var(--rjam-muted);
+}
+
+.auth-field {
+    margin-bottom: 16px;
+}
+
+.auth-label {
+    display: block;
+    font-size: 0.82rem;
+    font-weight: 600;
+    margin-bottom: 6px;
+    color: var(--rjam-espresso);
+}
+
+.auth-input {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    border-radius: 8px;
+    border: 1px solid #D8C9BC;
+    font-size: 0.92rem;
+    font-family: inherit;
+    color: var(--rjam-espresso);
+    background-color: #FFFFFF;
+}
+
+.auth-input:focus {
+    outline: none;
+    border-color: var(--rjam-caramel);
+}
+
+.auth-btn {
+    width: 100%;
+    padding: 11px 16px;
+    border: none;
+    border-radius: 8px;
+    background-color: var(--rjam-caramel);
+    color: #FFFFFF;
+    font-weight: 600;
+    font-size: 0.92rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.auth-btn:hover {
+    background-color: var(--rjam-caramel-dark);
+}
+
+.auth-alert-error {
+    background-color: #FDF3F1;
+    border: 1px solid #E5B9B2;
+    color: var(--rjam-error);
+    padding: 10px 12px;
+    border-radius: 8px;
+    font-size: 0.85rem;
+    margin-bottom: 16px;
+}
+
+/* Tablet & Mobile Responsive Layout Rules */
+html {
+    scroll-behavior: smooth;
+}
+
+.mud-layout {
+    overflow-x: clip;
+}
+
+img {
+    max-width: 100%;
+}
+
+.rjam-appbar-title {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0;
+}
+
+.mud-table-container {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.rjam-pos-cart {
+    border-radius: 14px;
+    position: sticky;
+    top: 76px;
+}
+
+#pos-current-order {
+    scroll-margin-top: 72px;
+}
+
+@media (max-width: 959.98px) {
+    .rjam-pos-cart {
+        position: static;
+    }
+
+    .mud-button-root {
+        min-height: 36px;
+    }
+}
+
+@media (max-width: 599.98px) {
+    .auth-shell {
+        padding: 16px;
+    }
+
+    .auth-card {
+        padding: 24px 18px;
+    }
+
+    .mud-table .mud-table-cell .mud-input-control {
+        min-width: 130px;
+        width: 100%;
+    }
+}
+
+/* Branded Pre-Login Splash, Submit Loading & 404 Display */
+.rjam-splash-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+    background-color: var(--rjam-cream);
+}
+
+.rjam-prelogin-splash {
+    animation: rjamSplashOut 0.85s ease forwards;
+}
+
+.auth-shell:has(.auth-alert-error) ~ .rjam-prelogin-splash,
+.rjam-prelogin-splash.is-dismissed {
+    display: none;
+}
+
+.rjam-submit-overlay {
+    display: none;
+    background-color: rgba(247, 241, 235, 0.92);
+    backdrop-filter: blur(2px);
+}
+
+.rjam-submit-overlay.is-active {
+    display: flex;
+}
+
+@keyframes rjamSplashOut {
+    0%, 65% {
+        opacity: 1;
+        visibility: visible;
+    }
+    100% {
+        opacity: 0;
+        visibility: hidden;
+        pointer-events: none;
+    }
+}
+
+.rjam-splash-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 16px;
+    max-width: 300px;
+    width: 100%;
+}
+
+.rjam-splash-logo {
+    height: 76px;
+    width: auto;
+    display: block;
+}
+
+.rjam-splash-bar {
+    width: 180px;
+    height: 4px;
+    border-radius: 999px;
+    background-color: #E6DBD1;
+    overflow: hidden;
+}
+
+.rjam-splash-bar-fill {
+    width: 45%;
+    height: 100%;
+    border-radius: 999px;
+    background-color: var(--rjam-caramel);
+    animation: rjamBarSlide 1s ease-in-out infinite;
+}
+
+@keyframes rjamBarSlide {
+    0% {
+        transform: translateX(-100%);
+    }
+    100% {
+        transform: translateX(260%);
+    }
+}
+
+.rjam-splash-text {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--rjam-muted);
+    letter-spacing: 0.01em;
+}
+
+.rjam-notfound-wrap {
+    min-height: 65vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+}
+
+.rjam-notfound-card {
+    width: 100%;
+    max-width: 480px;
+    background-color: var(--rjam-surface);
+    border: 1px solid var(--rjam-border);
+    border-radius: 16px;
+    padding: 40px 28px;
+    text-align: center;
+}
+
+.rjam-notfound-code {
+    font-size: 4rem;
+    font-weight: 800;
+    line-height: 1;
+    color: var(--rjam-caramel);
+    letter-spacing: -0.02em;
+    margin: 8px 0 10px 0;
+}
+
+.rjam-notfound-title {
+    margin: 0;
+    font-size: 1.4rem;
+    font-weight: 700;
+    color: var(--rjam-espresso);
+}
+
+.rjam-notfound-sub {
+    margin: 8px 0 24px 0;
+    font-size: 0.92rem;
+    color: var(--rjam-muted);
+    line-height: 1.5;
+}
+
+.rjam-notfound-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    justify-content: center;
+}
+
+.rjam-btn-primary,
+.rjam-btn-outlined {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    padding: 10px 18px;
+    border-radius: 8px;
+    font-weight: 600;
+    font-size: 0.88rem;
+    text-decoration: none;
+    transition: background-color 0.15s ease;
+}
+
+.rjam-btn-primary {
+    background-color: var(--rjam-caramel);
+    color: #FFFFFF;
+}
+
+.rjam-btn-primary:hover {
+    background-color: var(--rjam-caramel-dark);
+}
+
+.rjam-btn-outlined {
+    background-color: transparent;
+    color: var(--rjam-espresso);
+    border: 1px solid #D8C9BC;
+}
+
+.rjam-btn-outlined:hover {
+    background-color: #FBF7F3;
+}
+
+/* Offline POS Terminal Overlay & Standalone Shell */
+.rjam-offpos-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 10050;
+    background-color: var(--rjam-cream);
+    overflow-y: auto;
+}
+
+.rjam-offpos-shell {
+    min-height: 100vh;
+    background-color: var(--rjam-cream);
+    color: var(--rjam-espresso);
+}
+
+.rjam-offpos-topbar {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background-color: var(--rjam-espresso);
+    color: var(--rjam-cream);
+    padding: 10px 16px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.rjam-offpos-brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.rjam-offpos-pill {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 4px 10px;
+    border-radius: 999px;
+}
+
+.rjam-offpos-pill.is-online {
+    background-color: rgba(62, 123, 90, 0.25);
+    color: #B7E4C7;
+}
+
+.rjam-offpos-pill.is-offline {
+    background-color: rgba(217, 155, 38, 0.28);
+    color: #FDE4A9;
+}
+
+.rjam-offpos-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.rjam-off-btn {
+    border: 1px solid rgba(247, 241, 235, 0.28);
+    background: transparent;
+    color: var(--rjam-cream);
+    padding: 7px 12px;
+    border-radius: 8px;
+    font-size: 0.82rem;
+    font-weight: 600;
+    cursor: pointer;
+    text-decoration: none;
+    font-family: inherit;
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.rjam-off-btn.is-active {
+    background-color: rgba(200, 138, 85, 0.28);
+    border-color: var(--rjam-caramel);
+}
+
+.rjam-off-btn.is-primary {
+    background-color: var(--rjam-caramel);
+    border-color: var(--rjam-caramel);
+    color: #FFFFFF;
+}
+
+.rjam-off-btn.is-outline {
+    background-color: #FFFFFF;
+    border-color: #D8C9BC;
+    color: var(--rjam-espresso);
+}
+
+.rjam-off-btn:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+}
+
+.rjam-offpos-body {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 16px;
+}
+
+.rjam-off-banner {
+    background-color: #FFF9EE;
+    border: 1px solid #DFAA7D;
+    color: var(--rjam-espresso);
+    padding: 10px 14px;
+    border-radius: 10px;
+    font-size: 0.86rem;
+    font-weight: 500;
+    margin-bottom: 14px;
+}
+
+.rjam-offpos-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 16px;
+}
+
+@media (min-width: 960px) {
+    .rjam-offpos-grid {
+        grid-template-columns: minmax(0, 7fr) minmax(300px, 5fr);
+        align-items: start;
+    }
+
+    .rjam-offpos-cart {
+        position: sticky;
+        top: 72px;
+    }
+
+    .rjam-off-mobile-jump {
+        display: none;
+    }
+}
+
+.rjam-off-card {
+    background-color: #FFFFFF;
+    border: 1px solid var(--rjam-border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 14px;
+}
+
+.rjam-off-h2 {
+    margin: 0;
+    font-size: 1.2rem;
+    font-weight: 700;
+    color: var(--rjam-espresso);
+}
+
+.rjam-off-h3 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--rjam-espresso);
+}
+
+.rjam-off-muted {
+    color: var(--rjam-muted);
+    font-size: 0.82rem;
+}
+
+.rjam-off-row-between {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.rjam-off-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 12px;
+}
+
+.rjam-off-chip {
+    border: 1px solid #D8C9BC;
+    background: #FFFFFF;
+    color: var(--rjam-espresso);
+    border-radius: 999px;
+    padding: 5px 12px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.rjam-off-chip.is-selected {
+    background-color: var(--rjam-caramel);
+    border-color: var(--rjam-caramel);
+    color: #FFFFFF;
+}
+
+.rjam-off-cards {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(205px, 1fr));
+    gap: 12px;
+}
+
+.rjam-off-prod {
+    background: #FFFFFF;
+    border: 1px solid var(--rjam-border);
+    border-radius: 14px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 10px;
+}
+
+.rjam-off-prod-top {
+    display: flex;
+    justify-content: flex-end;
+    margin-bottom: 6px;
+}
+
+.rjam-off-stock {
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 3px 8px;
+    border-radius: 999px;
+    color: #FFFFFF;
+}
+
+.rjam-off-stock.is-ok { background-color: var(--rjam-success); }
+.rjam-off-stock.is-low { background-color: #D99B26; color: var(--rjam-espresso); }
+.rjam-off-stock.is-out { background-color: var(--rjam-error); }
+
+.rjam-off-prod-name {
+    font-weight: 700;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.02em;
+    color: var(--rjam-espresso);
+}
+
+.rjam-off-prod-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid #F0E6DD;
+}
+
+.rjam-off-empty,
+.rjam-off-cart-empty {
+    text-align: center;
+    padding: 28px 16px;
+    background-color: #FBF7F3;
+    border-radius: 10px;
+    color: var(--rjam-muted);
+}
+
+.rjam-off-cart-lines {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 280px;
+    overflow-y: auto;
+    margin-bottom: 12px;
+}
+
+.rjam-off-cart-line {
+    background-color: #FBF7F3;
+    border: 1px solid #EAE0D7;
+    border-radius: 8px;
+    padding: 8px 10px;
+}
+
+.rjam-off-qty {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.rjam-off-qty-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 6px;
+    border: 1px solid #D8C9BC;
+    background: #FFFFFF;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.rjam-off-totals {
+    border-top: 1px solid var(--rjam-border);
+    padding-top: 12px;
+}
+
+.rjam-off-total-row {
+    border-top: 1px solid var(--rjam-border);
+    border-bottom: 1px solid var(--rjam-border);
+    padding: 10px 0;
+    margin: 12px 0;
+    font-size: 1.05rem;
+}
+
+.rjam-off-link-danger {
+    background: none;
+    border: none;
+    color: var(--rjam-error);
+    font-weight: 600;
+    font-size: 0.82rem;
+    cursor: pointer;
+    font-family: inherit;
+}
+
+.rjam-off-queue-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.rjam-off-queue-item {
+    border: 1px solid var(--rjam-border);
+    border-left: 4px solid var(--rjam-caramel);
+    border-radius: 10px;
+    padding: 12px;
+    background-color: #FBF7F3;
+}
+
+.rjam-off-queue-item.status-synced { border-left-color: var(--rjam-success); background-color: #FFFFFF; }
+.rjam-off-queue-item.status-conflict { border-left-color: var(--rjam-error); background-color: #FDF3F1; }
+
+.rjam-off-badge {
+    display: inline-block;
+    font-size: 0.72rem;
+    font-weight: 700;
+    padding: 2px 8px;
+    border-radius: 999px;
+    margin-left: 6px;
+}
+
+.rjam-off-badge.status-pending { background: #FFF3CD; color: #7A5600; }
+.rjam-off-badge.status-synced { background: #E3F3EA; color: var(--rjam-success); }
+.rjam-off-badge.status-conflict { background: #FADCD7; color: var(--rjam-error); }
+
+.rjam-off-err {
+    margin-top: 6px;
+    font-size: 0.8rem;
+    color: var(--rjam-error);
+    font-weight: 600;
+}
+
+.rjam-off-queue-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 10px;
+    align-items: center;
+}
+
+.rjam-off-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(46, 28, 22, 0.55);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 16px;
+    z-index: 10100;
+}
+
+.rjam-off-modal {
+    width: 100%;
+    max-width: 400px;
+    background: #FFFFFF;
+    border-radius: 14px;
+    padding: 18px;
+    max-height: 92vh;
+    overflow-y: auto;
+}
+
+@media print {
+    body * {
+        visibility: hidden !important;
+    }
+
+    .rjam-receipt-printable,
+    .rjam-receipt-printable * {
+        visibility: visible !important;
+    }
+
+    .rjam-receipt-printable {
+        position: fixed;
+        left: 0;
+        top: 0;
+        width: 100%;
+        border: none !important;
+    }
+}

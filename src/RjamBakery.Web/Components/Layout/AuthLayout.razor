@@ -1,0 +1,31 @@
+@inherits LayoutComponentBase
+
+<div class="auth-shell">
+    <div class="auth-card">
+        <div class="auth-brand auth-brand--logo">
+            <img src="images/rjam-logo.png" alt="RJAM Bakery" class="auth-brand-logo" />
+            <div class="auth-brand-sub">Management &amp; Inventory System</div>
+        </div>
+        @Body
+    </div>
+</div>
+
+<div class="rjam-splash-screen rjam-prelogin-splash" id="rjam-prelogin-splash" aria-hidden="true">
+    <div class="rjam-splash-card">
+        <img src="images/rjam-logo.png" alt="RJAM Bakery" class="rjam-splash-logo" />
+        <div class="rjam-splash-bar">
+            <div class="rjam-splash-bar-fill"></div>
+        </div>
+        <div class="rjam-splash-text">Preparing RJAM Bakery...</div>
+    </div>
+</div>
+
+<div class="rjam-splash-screen rjam-submit-overlay" id="rjam-auth-submit-overlay" role="status" aria-live="polite">
+    <div class="rjam-splash-card">
+        <img src="images/rjam-logo.png" alt="RJAM Bakery" class="rjam-splash-logo" />
+        <div class="rjam-splash-bar">
+            <div class="rjam-splash-bar-fill"></div>
+        </div>
+        <div class="rjam-splash-text" id="rjam-auth-submit-text">Signing you in...</div>
+    </div>
+</div>

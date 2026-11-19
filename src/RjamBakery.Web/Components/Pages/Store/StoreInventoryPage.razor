@@ -1,0 +1,203 @@
+@page "/store-inventory"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IStoreInventoryService StoreService
+@inject ISnackbar Snackbar
+
+<PageTitle>Store Inventory - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Store Inventory Management"
+            Subtitle="Monitor live sellable store stock, minimum stock levels, and controlled adjustment requests."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-4" Style="background:#FFFFFF; border-radius:14px;">
+    <MudTabPanel Text="Current Store Stock">
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                <MudTextField @bind-Value="_search" Placeholder="Search SKU or product..." Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <MudCheckBox @bind-Value="_lowOnly" Label="Low Stock" />
+                <MudCheckBox @bind-Value="_outOnly" Label="Out of Stock" />
+                <MudButton Variant="Variant.Outlined" Disabled="@(_loading && !_initialLoading)" OnClick="LoadAsync">
+                    <LoadingButtonContent Loading="@(_loading && !_initialLoading)" Text="Filter" LoadingText="Filtering..." />
+                </MudButton>
+            </MudStack>
+
+            @if (_adjTarget is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6" Class="mb-2">@(_directMode ? "Apply Authorized Store Adjustment" : "Request Store Adjustment") — @_adjTarget.ProductName</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="3">
+                            <MudNumericField @bind-Value="_adjDelta" Label="Delta (+/-)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="9">
+                            <MudTextField @bind-Value="_adjReason" Label="Mandatory Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SubmitAdjustmentAsync">
+                            <LoadingButtonContent Loading="_saving" Text="Submit" LoadingText="Submitting..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _adjTarget = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @if (_initialLoading)
+            {
+                <PageLoadingSkeleton Variant="Table" Rows="6" />
+            }
+            else
+            {
+            <MudTable Items="_items" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+                <HeaderContent>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Category</MudTh>
+                    <MudTh Style="text-align:right;">Current Qty</MudTh>
+                    <MudTh Style="text-align:right;">Min Stock</MudTh>
+                    <MudTh>Last Received</MudTh>
+                    <MudTh>Last Sold</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="SKU">@context.ProductSku</MudTd>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Category">@context.CategoryName</MudTd>
+                    <MudTd DataLabel="Current" Style="text-align:right;" Class="tabular-nums"><strong>@context.CurrentQuantity.ToString("0.##") @context.UnitCode</strong></MudTd>
+                    <MudTd DataLabel="Min" Style="text-align:right;" Class="tabular-nums">@context.MinStockLevel.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="Last Received">@(context.LastReceivedAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "-")</MudTd>
+                    <MudTd DataLabel="Last Sold">@(context.LastSoldAt?.ToLocalTime().ToString("MM-dd HH:mm") ?? "-")</MudTd>
+                    <MudTd DataLabel="Status"><StockStatusChip Status="@context.StockStatus" /></MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => StartAdj(context, false))">Request Adj</MudButton>
+                            <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="mgrCtx">
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Primary" OnClick="@(() => StartAdj(context, true))">Direct Adj</MudButton>
+                            </AuthorizeView>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+            }
+        </MudStack>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Adjustment Requests">
+        <MudTable Items="_requests" Dense="true" Hover="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Ref #</MudTh>
+                <MudTh>Location</MudTh>
+                <MudTh>Item</MudTh>
+                <MudTh Style="text-align:right;">Delta</MudTh>
+                <MudTh>Reason</MudTh>
+                <MudTh>Requested By</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Ref #">@context.ReferenceNumber</MudTd>
+                <MudTd DataLabel="Location">@context.Location</MudTd>
+                <MudTd DataLabel="Item">@(context.ProductName ?? context.RawMaterialName ?? "-")</MudTd>
+                <MudTd DataLabel="Delta" Style="text-align:right;" Class="tabular-nums">@context.QuantityDelta.ToString("+0.##;-0.##")</MudTd>
+                <MudTd DataLabel="Reason">@context.Reason</MudTd>
+                <MudTd DataLabel="Requested By">@context.RequestedByUserName</MudTd>
+                <MudTd DataLabel="Status"><StockStatusChip Status="@context.ApprovalStatus.ToString()" /></MudTd>
+                <MudTd DataLabel="Actions">
+                    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="revCtx">
+                        @if (context.ApprovalStatus == ApprovalStatus.Pending)
+                        {
+                            <MudStack Row="true" Spacing="1">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => ReviewAsync(context.Id, true))">Approve</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => ReviewAsync(context.Id, false))">Reject</MudButton>
+                            </MudStack>
+                        }
+                    </AuthorizeView>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Store Inventory", null, true)];
+    private List<StoreInventoryDto> _items = [];
+    private List<StockAdjustmentRequestDto> _requests = [];
+    private string? _search;
+    private bool _lowOnly;
+    private bool _outOnly;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+
+    private StoreInventoryDto? _adjTarget;
+    private bool _directMode;
+    private decimal _adjDelta;
+    private string _adjReason = string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _initialLoading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _items = (await StoreService.GetPagedAsync(new StoreInventoryQuery(_search, null, _lowOnly, _outOnly, 1, 200))).Items.ToList();
+            _requests = (await StoreService.GetAdjustmentRequestsPagedAsync(pageSize: 50)).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void StartAdj(StoreInventoryDto item, bool direct)
+    {
+        _adjTarget = item;
+        _directMode = direct;
+        _adjDelta = 0m;
+        _adjReason = string.Empty;
+    }
+
+    private async Task SubmitAdjustmentAsync()
+    {
+        if (_adjTarget is null || _saving) return;
+        _saving = true;
+        try
+        {
+            if (_directMode)
+            {
+                await StoreService.ApplyDirectStoreAdjustmentAsync(new DirectStoreAdjustmentRequest(_adjTarget.ProductId, _adjDelta, _adjReason));
+                Snackbar.Add("Store inventory adjusted.", Severity.Success);
+            }
+            else
+            {
+                await StoreService.RequestAdjustmentAsync(new CreateStockAdjustmentRequest(
+                    AdjustmentLocation.Store, _adjTarget.ProductId, null, null, _adjDelta, _adjReason));
+                Snackbar.Add("Adjustment request submitted for manager approval.", Severity.Info);
+            }
+            _adjTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private async Task ReviewAsync(long id, bool approve)
+    {
+        try
+        {
+            await StoreService.ReviewAdjustmentAsync(id, new ReviewStockAdjustmentRequest(approve, approve ? "Approved" : "Rejected"));
+            Snackbar.Add(approve ? "Adjustment approved." : "Adjustment rejected.", Severity.Info);
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+}

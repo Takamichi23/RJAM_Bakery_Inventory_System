@@ -1,0 +1,216 @@
+@page "/sales-history"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Common
+@using RjamBakery.Domain.Enums
+@inject IPosService PosService
+@inject ISystemSettingService SettingService
+@inject IDialogService DialogService
+@inject ISnackbar Snackbar
+
+<PageTitle>Sales History - RJAM Bakery</PageTitle>
+
+<MudStack Spacing="4">
+    <MudPaper Elevation="0" Outlined="true" Class="pa-4">
+        <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+            <div>
+                <MudText Typo="Typo.h5" Color="Color.Secondary">POS Sales History</MudText>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary">Review completed transactions, print receipts, or process authorized voids and refunds.</MudText>
+            </div>
+            <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Cashier}")">
+                <MudButton Href="/pos" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PointOfSale">
+                    Open POS Terminal
+                </MudButton>
+            </AuthorizeView>
+        </MudStack>
+
+        <MudGrid Class="mt-3" Spacing="2">
+            <MudItem xs="12" sm="5">
+                <MudTextField @bind-Value="_receiptFilter" Label="Receipt Number" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            </MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect @bind-Value="_statusFilter" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                    <MudSelectItem Value="@((PosTransactionStatus?)PosTransactionStatus.Completed)">Completed</MudSelectItem>
+                    <MudSelectItem Value="@((PosTransactionStatus?)PosTransactionStatus.Voided)">Voided</MudSelectItem>
+                    <MudSelectItem Value="@((PosTransactionStatus?)PosTransactionStatus.Refunded)">Refunded</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12" sm="3" Class="d-flex align-center">
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Disabled="@(_loading && !_initialLoading)" OnClick="LoadAsync">
+                    <LoadingButtonContent Loading="@(_loading && !_initialLoading)" Text="Filter" LoadingText="Filtering..." />
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </MudPaper>
+
+    @if (_initialLoading)
+    {
+        <PageLoadingSkeleton Variant="Table" Rows="6" />
+    }
+    else
+    {
+    <MudPaper Elevation="0" Outlined="true">
+        <MudTable Items="_transactions" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+            <HeaderContent>
+                <MudTh>Receipt #</MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Cashier</MudTh>
+                <MudTh>Method</MudTh>
+                <MudTh Style="text-align:right;">Total</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Receipt #" Class="tabular-nums">@context.ReceiptNumber</MudTd>
+                <MudTd DataLabel="Date">@context.TransactionDate.ToLocalTime().ToString("yyyy-MM-dd hh:mm tt")</MudTd>
+                <MudTd DataLabel="Cashier">@context.CashierUserName</MudTd>
+                <MudTd DataLabel="Method">@context.PaymentMethod</MudTd>
+                <MudTd DataLabel="Total" Style="text-align:right;" Class="tabular-nums">@_currencySymbol@context.TotalAmount.ToString("N2")</MudTd>
+                <MudTd DataLabel="Status">
+                    <MudChip T="string" Size="Size.Small" Color="@GetStatusColor(context.Status)">@context.Status</MudChip>
+                </MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudStack Row="true" Spacing="1">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => ShowReceiptAsync(context.Id))">
+                            Receipt
+                        </MudButton>
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="authCtx">
+                            @if (context.Status == PosTransactionStatus.Completed)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => OpenReversePanel(context))">
+                                    Void / Refund
+                                </MudButton>
+                            }
+                        </AuthorizeView>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No transactions found.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+    }
+
+    @if (_reversingTarget is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-color:#B84A39;">
+            <MudText Typo="Typo.h6" Color="Color.Error">Reverse Transaction @_reversingTarget.ReceiptNumber</MudText>
+            <MudGrid Class="mt-2" Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudSelect @bind-Value="_reverseStatus" Label="Action" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelectItem Value="PosTransactionStatus.Voided">Void (Restock)</MudSelectItem>
+                        <MudSelectItem Value="PosTransactionStatus.Refunded">Customer Refund</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_reverseReason" Label="Mandatory Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                @if (_reverseStatus == PosTransactionStatus.Refunded)
+                {
+                    <MudItem xs="12">
+                        <MudCheckBox @bind-Value="_restoreOnRefund" Label="Items physically inspected intact and approved to restore to sellable stock (leave unchecked to route to Returns Inspection)" />
+                    </MudItem>
+                }
+            </MudGrid>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Error" Disabled="_reversing" OnClick="ConfirmReverseAsync">
+                    <LoadingButtonContent Loading="_reversing" Text="Confirm Reversal" LoadingText="Reversing..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_reversing" OnClick="@(() => _reversingTarget = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private List<PosTransactionDto> _transactions = [];
+    private string _currencySymbol = "₱";
+    private string? _receiptFilter;
+    private PosTransactionStatus? _statusFilter;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _reversing;
+
+    private PosTransactionDto? _reversingTarget;
+    private PosTransactionStatus _reverseStatus = PosTransactionStatus.Voided;
+    private string _reverseReason = string.Empty;
+    private bool _restoreOnRefund;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currencySymbol = (await SettingService.GetOperationalConfigAsync()).CurrencySymbol;
+            await LoadAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            var result = await PosService.GetTransactionsPagedAsync(new PosTransactionQuery(
+                ReceiptNumber: _receiptFilter,
+                Status: _statusFilter,
+                PageNumber: 1,
+                PageSize: 50));
+            _transactions = result.Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task ShowReceiptAsync(long id)
+    {
+        var receipt = await PosService.GetReceiptAsync(id);
+        var parameters = new DialogParameters<PosReceiptDialog> { { x => x.Receipt, receipt } };
+        await DialogService.ShowAsync<PosReceiptDialog>("Receipt", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+    }
+
+    private void OpenReversePanel(PosTransactionDto tx)
+    {
+        _reversingTarget = tx;
+        _reverseStatus = PosTransactionStatus.Voided;
+        _reverseReason = string.Empty;
+        _restoreOnRefund = false;
+    }
+
+    private async Task ConfirmReverseAsync()
+    {
+        if (_reversingTarget is null || _reversing) return;
+        _reversing = true;
+        try
+        {
+            await PosService.ReverseTransactionAsync(_reversingTarget.Id, new ReversePosTransactionRequest(
+                _reverseStatus, _reverseReason, _restoreOnRefund));
+            Snackbar.Add($"Transaction {_reversingTarget.ReceiptNumber} updated.", Severity.Success);
+            _reversingTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _reversing = false;
+        }
+    }
+
+    private static Color GetStatusColor(PosTransactionStatus status) => status switch
+    {
+        PosTransactionStatus.Completed => Color.Success,
+        PosTransactionStatus.Voided => Color.Error,
+        PosTransactionStatus.Refunded => Color.Warning,
+        _ => Color.Default
+    };
+}

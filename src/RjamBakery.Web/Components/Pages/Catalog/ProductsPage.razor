@@ -1,0 +1,372 @@
+@page "/products"
+@attribute [Authorize(Roles = AppRoles.Owner)]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@inject IProductService ProductService
+@inject ICategoryService CategoryService
+@inject ISystemSettingService SettingService
+@inject ISnackbar Snackbar
+
+<PageTitle>Products &amp; Categories - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Products &amp; Categories"
+            Subtitle="Manage RJAM Bakery product catalog, pricing, minimum thresholds, and categories."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-3 pa-sm-4" Style="background:#FFFFFF; border-radius:14px;">
+    <MudTabPanel Text="Products">
+        <MudStack Spacing="3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                    <MudTextField @bind-Value="_search" Placeholder="Search SKU or name..." Variant="Variant.Outlined" Margin="Margin.Dense"
+                                  Immediate="true" DebounceInterval="200" OnDebounceIntervalElapsed="LoadProductsAsync" />
+                    <MudSelect @bind-Value="_filterCategoryId" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true"
+                               T="int?" Style="min-width:160px; flex:1 1 160px;">
+                        @foreach (var c in _categories)
+                        {
+                            <MudSelectItem Value="@((int?)c.Id)">@c.Name</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudCheckBox @bind-Value="_includeArchived" Label="Include Archived" />
+                    <MudButton Variant="Variant.Outlined" Disabled="@(_loading && !_initialLoading)" OnClick="LoadProductsAsync">
+                        <LoadingButtonContent Loading="@(_loading && !_initialLoading)" Text="Apply" LoadingText="Filtering..." />
+                    </MudButton>
+                </MudStack>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="_initialLoading" OnClick="NewProductAsync">
+                    Add Product
+                </MudButton>
+            </MudStack>
+
+            @if (_editingProduct is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6" Class="mb-3">@(_editingProduct.Id.HasValue ? "Edit Product" : "New Product")</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_editingProduct.Sku"
+                                          Label="SKU"
+                                          Variant="Variant.Outlined"
+                                          Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="8">
+                            <MudTextField @bind-Value="_editingProduct.Name" Label="Product Name" Variant="Variant.Outlined" Margin="Margin.Dense" Required="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect @bind-Value="_editingProduct.CategoryId" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var c in _categories.Where(x => x.IsActive))
+                                {
+                                    <MudSelectItem Value="c.Id">@c.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect @bind-Value="_editingProduct.BaseUnitId" Label="Unit of Measure" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var u in _units)
+                                {
+                                    <MudSelectItem Value="u.Id">@u.Name (@u.Code)</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudNumericField @bind-Value="_editingProduct.SellingPrice" Label="Selling Price" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                             Min="0m" Adornment="Adornment.Start" AdornmentText="@_currency" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudNumericField @bind-Value="_editingProduct.MinStockLevel" Label="Min Stock Level" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0m" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudNumericField @bind-Value="_editingProduct.ShelfLifeDays" Label="Shelf Life (Days, optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1" Clearable="true" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_editingProduct.ImagePath" Label="Image URL / Path (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_editingProduct.Description" Label="Description" Variant="Variant.Outlined" Margin="Margin.Dense" Lines="2" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_savingProduct" OnClick="SaveProductAsync">
+                            <LoadingButtonContent Loading="_savingProduct" Text="Save Product" LoadingText="Saving..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_savingProduct" OnClick="@(() => _editingProduct = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @if (_initialLoading)
+            {
+                <PageLoadingSkeleton Variant="Table" Rows="6" />
+            }
+            else
+            {
+            <MudTable Items="_products" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+                <HeaderContent>
+                    <MudTh>SKU</MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Category</MudTh>
+                    <MudTh>Unit</MudTh>
+                    <MudTh Style="text-align:right;">Price</MudTh>
+                    <MudTh Style="text-align:right;">Min Stock</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="SKU" Class="tabular-nums">@context.Sku</MudTd>
+                    <MudTd DataLabel="Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Category">@context.CategoryName</MudTd>
+                    <MudTd DataLabel="Unit">@context.BaseUnitCode</MudTd>
+                    <MudTd DataLabel="Price" Style="text-align:right;" Class="tabular-nums">@_currency@context.SellingPrice.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Min Stock" Style="text-align:right;" Class="tabular-nums">@context.MinStockLevel.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsArchived ? Color.Default : Color.Success)">
+                            @(context.IsArchived ? "Archived" : "Active")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudStack Row="true" Spacing="1">
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditProduct(context))">Edit</MudButton>
+                            <MudButton Size="Size.Small" Variant="Variant.Text" Color="@(context.IsArchived ? Color.Success : Color.Warning)"
+                                       OnClick="@(() => ToggleArchiveProductAsync(context))">
+                                @(context.IsArchived ? "Restore" : "Archive")
+                            </MudButton>
+                        </MudStack>
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No products found.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+            }
+        </MudStack>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Categories">
+        <MudStack Spacing="3">
+            <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                <MudText Typo="Typo.subtitle1" Class="mb-2">@(_catForm.Id.HasValue ? "Edit Category" : "Add Category")</MudText>
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_catForm.Name" Label="Category Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="5">
+                        <MudTextField @bind-Value="_catForm.Description" Label="Description" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="6" sm="1">
+                        <MudNumericField @bind-Value="_catForm.DisplayOrder" Label="Order" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0" />
+                    </MudItem>
+                    <MudItem xs="6" sm="2" Class="d-flex align-center">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" FullWidth="true" Disabled="_savingCategory" OnClick="SaveCategoryAsync">
+                            <LoadingButtonContent Loading="_savingCategory" Text="Save" LoadingText="Saving..." />
+                        </MudButton>
+                    </MudItem>
+                </MudGrid>
+            </MudPaper>
+
+            <MudTable Items="_categories" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Order</MudTh>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Description</MudTh>
+                    <MudTh Style="text-align:right;">Products</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Order">@context.DisplayOrder</MudTd>
+                    <MudTd DataLabel="Name">@context.Name</MudTd>
+                    <MudTd DataLabel="Description">@context.Description</MudTd>
+                    <MudTd DataLabel="Products" Style="text-align:right;">@context.ProductCount</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.IsActive ? Color.Success : Color.Default)">
+                            @(context.IsActive ? "Active" : "Inactive")
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditCategory(context))">Edit</MudButton>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Warning"
+                                   OnClick="@(() => ToggleCategoryStatusAsync(context))">
+                            @(context.IsActive ? "Deactivate" : "Activate")
+                        </MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudStack>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private sealed class ProductFormModel
+    {
+        public int? Id { get; set; }
+        public int CategoryId { get; set; }
+        public string Sku { get; set; } = string.Empty;
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int BaseUnitId { get; set; }
+        public decimal SellingPrice { get; set; }
+        public decimal MinStockLevel { get; set; }
+        public int? ShelfLifeDays { get; set; }
+        public string? ImagePath { get; set; }
+    }
+
+    private sealed class CategoryFormModel
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string Description { get; set; } = string.Empty;
+        public int DisplayOrder { get; set; } = 1;
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Products & Categories", null, true)];
+    private List<ProductDto> _products = [];
+    private List<CategoryDto> _categories = [];
+    private List<UnitOfMeasureDto> _units = [];
+    private string _currency = "₱";
+    private string? _search;
+    private int? _filterCategoryId;
+    private bool _includeArchived;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _savingProduct;
+    private bool _savingCategory;
+
+    private ProductFormModel? _editingProduct;
+    private CategoryFormModel _catForm = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currency = (await SettingService.GetOperationalConfigAsync()).CurrencySymbol;
+            _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
+            await LoadCategoriesAsync();
+            await LoadProductsAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadCategoriesAsync()
+    {
+        _categories = (await CategoryService.GetAllAsync(includeInactive: true)).ToList();
+    }
+
+    private async Task LoadProductsAsync()
+    {
+        _loading = true;
+        try
+        {
+            var res = await ProductService.GetPagedAsync(new ProductQuery(_search, _filterCategoryId, _includeArchived, 1, 200));
+            _products = res.Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task NewProductAsync()
+    {
+        var defaultCat = _categories.FirstOrDefault(c => c.IsActive)?.Id ?? 1;
+        var defaultUnit = _units.FirstOrDefault(u => u.Code == "pcs")?.Id ?? _units.FirstOrDefault()?.Id ?? 1;
+        var nextSku = await ProductService.GetNextSkuAsync();
+        _editingProduct = new ProductFormModel { Sku = nextSku, CategoryId = defaultCat, BaseUnitId = defaultUnit };
+    }
+
+    private void EditProduct(ProductDto p)
+    {
+        _editingProduct = new ProductFormModel
+        {
+            Id = p.Id,
+            CategoryId = p.CategoryId,
+            Sku = p.Sku,
+            Name = p.Name,
+            Description = p.Description,
+            BaseUnitId = p.BaseUnitId,
+            SellingPrice = p.SellingPrice,
+            MinStockLevel = p.MinStockLevel,
+            ShelfLifeDays = p.ShelfLifeDays,
+            ImagePath = p.ImagePath
+        };
+    }
+
+    private async Task SaveProductAsync()
+    {
+        if (_editingProduct is null || _savingProduct) return;
+        _savingProduct = true;
+        try
+        {
+            var saved = await ProductService.SaveAsync(new SaveProductRequest(
+                _editingProduct.Id, _editingProduct.CategoryId, _editingProduct.Sku, _editingProduct.Name,
+                _editingProduct.Description, _editingProduct.BaseUnitId, _editingProduct.SellingPrice,
+                _editingProduct.MinStockLevel, _editingProduct.ShelfLifeDays, _editingProduct.ImagePath));
+            await LoadProductsAsync();
+            await LoadCategoriesAsync();
+            _editingProduct = null;
+            Snackbar.Add($"Product '{saved.Name}' saved (SKU: {saved.Sku}).", Severity.Success);
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _savingProduct = false;
+        }
+    }
+
+    private async Task ToggleArchiveProductAsync(ProductDto p)
+    {
+        try
+        {
+            await ProductService.SetArchiveStatusAsync(p.Id, !p.IsArchived);
+            Snackbar.Add(p.IsArchived ? "Product restored." : "Product archived.", Severity.Info);
+            await LoadProductsAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void EditCategory(CategoryDto c)
+    {
+        _catForm = new CategoryFormModel { Id = c.Id, Name = c.Name, Description = c.Description, DisplayOrder = c.DisplayOrder };
+    }
+
+    private async Task SaveCategoryAsync()
+    {
+        if (_savingCategory) return;
+        _savingCategory = true;
+        try
+        {
+            await CategoryService.SaveAsync(new SaveCategoryRequest(_catForm.Id, _catForm.Name, _catForm.Description, _catForm.DisplayOrder, true));
+            Snackbar.Add("Category saved.", Severity.Success);
+            _catForm = new();
+            await LoadCategoriesAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _savingCategory = false;
+        }
+    }
+
+    private async Task ToggleCategoryStatusAsync(CategoryDto c)
+    {
+        try
+        {
+            await CategoryService.SetActiveStatusAsync(c.Id, !c.IsActive);
+            await LoadCategoriesAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+}

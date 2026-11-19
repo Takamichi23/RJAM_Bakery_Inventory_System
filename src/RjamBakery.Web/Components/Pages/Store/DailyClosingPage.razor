@@ -1,0 +1,230 @@
+@page "/daily-closing"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IDailyClosingService ClosingService
+@inject ISnackbar Snackbar
+
+<PageTitle>Daily Closing &amp; Stock Count - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Daily Closing &amp; Physical Stock Count"
+            Subtitle="Perform physical store count (~7:00 PM), review inventory variances, and finalize daily carryover."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-4" Style="background:#FFFFFF; border-radius:14px;">
+    <MudTabPanel Text="Closing Count">
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudDatePicker @bind-Date="_selectedDate" Label="Operating Date" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:220px;" />
+                <MudButton Variant="Variant.Outlined" Color="Color.Secondary" Disabled="_loading" OnClick="@(() => LoadSheetAsync())">
+                    <LoadingButtonContent Loading="_loading" Text="Load Closing Sheet" LoadingText="Loading..." />
+                </MudButton>
+                @if (_current is not null)
+                {
+                    <StockStatusChip Status="@_current.Status.ToString()" />
+                }
+            </MudStack>
+
+            @if (_loading)
+            {
+                <PageLoadingSkeleton Variant="Table" Rows="6" />
+            }
+            else if (_current is not null)
+            {
+                @if (_current.IsBeforeTargetClosingTime && _current.Status == DailyClosingStatus.Open)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                        Note: Current time is earlier than the configured evening stock count target time.
+                    </MudAlert>
+                }
+
+                <MudTable Items="_editableRows" Dense="true" Elevation="0" Outlined="true">
+                    <HeaderContent>
+                        <MudTh>Product</MudTh>
+                        <MudTh Style="text-align:right;">Opening</MudTh>
+                        <MudTh Style="text-align:right;">Deliveries</MudTh>
+                        <MudTh Style="text-align:right;">Returns</MudTh>
+                        <MudTh Style="text-align:right;">Sold</MudTh>
+                        <MudTh Style="text-align:right;">Waste</MudTh>
+                        <MudTh Style="text-align:right;">Expected</MudTh>
+                        <MudTh Style="width:140px;">Actual Count</MudTh>
+                        <MudTh Style="text-align:right;">Variance</MudTh>
+                        <MudTh>Variance Reason</MudTh>
+                    </HeaderContent>
+                    <RowTemplate>
+                        <MudTd DataLabel="Product">@context.ProductName (@context.UnitCode)</MudTd>
+                        <MudTd DataLabel="Opening" Style="text-align:right;" Class="tabular-nums">@context.Opening.ToString("0.##")</MudTd>
+                        <MudTd DataLabel="Deliveries" Style="text-align:right;" Class="tabular-nums">@context.Deliveries.ToString("0.##")</MudTd>
+                        <MudTd DataLabel="Returns" Style="text-align:right;" Class="tabular-nums">@context.Returns.ToString("0.##")</MudTd>
+                        <MudTd DataLabel="Sold" Style="text-align:right;" Class="tabular-nums">@context.Sold.ToString("0.##")</MudTd>
+                        <MudTd DataLabel="Waste" Style="text-align:right;" Class="tabular-nums">@context.Waste.ToString("0.##")</MudTd>
+                        <MudTd DataLabel="Expected" Style="text-align:right;" Class="tabular-nums"><strong>@context.Expected.ToString("0.##")</strong></MudTd>
+                        <MudTd DataLabel="Actual">
+                            <MudNumericField @bind-Value="context.Actual" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0m"
+                                             Disabled="@(_current.Status == DailyClosingStatus.Finalized)" />
+                        </MudTd>
+                        <MudTd DataLabel="Variance" Style="text-align:right;" Class="tabular-nums">
+                            <span style="color:@(context.Variance == 0 ? "#3E7B5A" : "#B84A39"); font-weight:600;">
+                                @context.Variance.ToString("+0.##;-0.##;0")
+                            </span>
+                        </MudTd>
+                        <MudTd DataLabel="Reason">
+                            <MudTextField @bind-Value="context.Reason" Variant="Variant.Outlined" Margin="Margin.Dense"
+                                          Disabled="@(_current.Status == DailyClosingStatus.Finalized)" />
+                        </MudTd>
+                    </RowTemplate>
+                </MudTable>
+
+                <MudTextField @bind-Value="_notes" Label="Closing Remarks" Variant="Variant.Outlined" Margin="Margin.Dense"
+                              Disabled="@(_current.Status == DailyClosingStatus.Finalized)" />
+
+                <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                    @if (_current.Status != DailyClosingStatus.Finalized)
+                    {
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_submitting" OnClick="SubmitCountAsync">
+                            <LoadingButtonContent Loading="_submitting" Text="Submit Physical Count" LoadingText="Submitting..." />
+                        </MudButton>
+                    }
+                    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")">
+                        @if (_current.Id > 0 && _current.Status is DailyClosingStatus.Submitted or DailyClosingStatus.VarianceReviewPending)
+                        {
+                            <MudCheckBox @bind-Value="_applyVarianceAdjustment" Label="Approve Variance Adjustments to Store Inventory" />
+                            <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_finalizing" OnClick="FinalizeAsync">
+                                <LoadingButtonContent Loading="_finalizing" Text="Approve & Finalize Carryover" LoadingText="Finalizing..." />
+                            </MudButton>
+                        }
+                    </AuthorizeView>
+                </MudStack>
+            }
+        </MudStack>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Closing History">
+        <MudTable Items="_history" Dense="true" Hover="true" Elevation="0">
+            <HeaderContent>
+                <MudTh>Date</MudTh>
+                <MudTh>Closing #</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Submitted By</MudTh>
+                <MudTh>Approved By</MudTh>
+                <MudTh Style="text-align:right;">Total Carryover</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Date">@context.OperatingDate.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd DataLabel="Closing #" Class="tabular-nums">@context.ClosingNumber</MudTd>
+                <MudTd DataLabel="Status"><StockStatusChip Status="@context.Status.ToString()" /></MudTd>
+                <MudTd DataLabel="Submitted By">@(context.SubmittedByUserName ?? "-")</MudTd>
+                <MudTd DataLabel="Approved By">@(context.ApprovedByUserName ?? "-")</MudTd>
+                <MudTd DataLabel="Carryover" Style="text-align:right;" Class="tabular-nums">@context.Items.Sum(i => i.CarryoverToNextDay).ToString("0.##")</MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private sealed class CountRow
+    {
+        public int ProductId { get; init; }
+        public string ProductName { get; init; } = string.Empty;
+        public string UnitCode { get; init; } = string.Empty;
+        public decimal Opening { get; init; }
+        public decimal Deliveries { get; init; }
+        public decimal Returns { get; init; }
+        public decimal Sold { get; init; }
+        public decimal Waste { get; init; }
+        public decimal Expected { get; init; }
+        public decimal Actual { get; set; }
+        public string Reason { get; set; } = string.Empty;
+        public decimal Variance => decimal.Round(Actual - Expected, 4, MidpointRounding.AwayFromZero);
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Daily Closing", null, true)];
+    private DateTime? _selectedDate = DateTime.Today;
+    private DailyClosingDto? _current;
+    private List<CountRow> _editableRows = [];
+    private List<DailyClosingDto> _history = [];
+    private string _notes = string.Empty;
+    private bool _applyVarianceAdjustment = true;
+    private bool _loading = true;
+    private bool _submitting;
+    private bool _finalizing;
+
+    protected override async Task OnInitializedAsync() => await LoadSheetAsync(loadHistory: true);
+
+    private async Task LoadSheetAsync(bool loadHistory = false)
+    {
+        _loading = true;
+        try
+        {
+            await LoadPreviewAsync();
+            if (loadHistory)
+            {
+                await LoadHistoryAsync();
+            }
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task LoadPreviewAsync()
+    {
+        var d = DateOnly.FromDateTime(_selectedDate ?? DateTime.Today);
+        _current = await ClosingService.PreviewClosingAsync(d);
+        _notes = _current.Notes;
+        _editableRows = _current.Items.Select(i => new CountRow
+        {
+            ProductId = i.ProductId,
+            ProductName = i.ProductName,
+            UnitCode = i.UnitCode,
+            Opening = i.OpeningStock,
+            Deliveries = i.ConfirmedDeliveries,
+            Returns = i.ApprovedRestockedReturns,
+            Sold = i.TotalSold,
+            Waste = i.RecordedWaste,
+            Expected = i.ExpectedClosingStock,
+            Actual = i.ActualClosingStock,
+            Reason = i.VarianceReason
+        }).ToList();
+    }
+
+    private async Task LoadHistoryAsync()
+    {
+        _history = (await ClosingService.GetHistoryAsync(pageSize: 30)).Items.ToList();
+    }
+
+    private async Task SubmitCountAsync()
+    {
+        if (_submitting) return;
+        _submitting = true;
+        try
+        {
+            var d = DateOnly.FromDateTime(_selectedDate ?? DateTime.Today);
+            _current = await ClosingService.SubmitPhysicalCountAsync(new SubmitDailyClosingRequest(
+                d, _notes,
+                _editableRows.Select(r => new SubmitDailyClosingItemInput(r.ProductId, r.Actual, r.Reason)).ToList()));
+            Snackbar.Add($"Closing count submitted ({_current.Status}).", Severity.Success);
+            await LoadHistoryAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _submitting = false; }
+    }
+
+    private async Task FinalizeAsync()
+    {
+        if (_current is null || _current.Id == 0 || _finalizing) return;
+        _finalizing = true;
+        try
+        {
+            _current = await ClosingService.ApproveAndFinalizeAsync(_current.Id,
+                new FinalizeDailyClosingRequest(_applyVarianceAdjustment, "Reviewed and finalized"));
+            Snackbar.Add("Daily closing finalized and carryover stock recorded.", Severity.Success);
+            await LoadPreviewAsync();
+            await LoadHistoryAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _finalizing = false; }
+    }
+}

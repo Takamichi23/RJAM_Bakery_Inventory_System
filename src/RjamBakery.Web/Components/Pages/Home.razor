@@ -1,0 +1,207 @@
+@page "/"
+@attribute [Authorize]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@inject IDashboardService DashboardService
+
+<PageTitle>Dashboard - RJAM Bakery</PageTitle>
+
+<PageHeader Title="@($"{_summary?.BakeryName ?? "RJAM Bakery"} Dashboard")"
+            Subtitle="@GetRoleSubtitle(_summary?.ActiveRole)"
+            Breadcrumbs="_breadcrumbs">
+    <Actions>
+        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Cashier}")">
+            <MudButton Href="/pos" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PointOfSale">
+                Open POS
+            </MudButton>
+        </AuthorizeView>
+        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Baker}")">
+            <MudButton Href="/production" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.BakeryDining">
+                Record Production
+            </MudButton>
+        </AuthorizeView>
+        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")">
+            <MudButton Href="/daily-closing" Variant="Variant.Outlined" Color="Color.Secondary" StartIcon="@Icons.Material.Filled.FactCheck">
+                Daily Closing
+            </MudButton>
+        </AuthorizeView>
+    </Actions>
+</PageHeader>
+
+@if (_loading)
+{
+    <PageLoadingSkeleton Variant="Dashboard" />
+}
+else if (_summary is not null)
+{
+    <MudStack Spacing="4">
+        <!-- Core KPI Strip -->
+        <MudGrid Spacing="3">
+            <MudItem xs="6" sm="4" md="3">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">TOTAL PRODUCTS</MudText>
+                    <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.TotalActiveProducts</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")">
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">RAW MATERIALS AVAILABLE</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.TotalRawMaterialUnits.ToString("0.##")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">FINISHED GOODS (FACTORY)</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.TotalFactoryFinishedUnits.ToString("0.##")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">TODAY'S PRODUCTION</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.TodayProductionUnits.ToString("0.##") (@_summary.TodayProductionBatches batches)</MudText>
+                    </MudPaper>
+                </MudItem>
+            </AuthorizeView>
+
+            <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")">
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">STORE SELLABLE STOCK</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.TotalStoreSellableUnits.ToString("0.##")</MudText>
+                    </MudPaper>
+                </MudItem>
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">TODAY'S NET SALES</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@_summary.CurrencySymbol@_summary.TodayNetSales.ToString("N2")</MudText>
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">@_summary.TodayTransactionCount transactions</MudText>
+                    </MudPaper>
+                </MudItem>
+            </AuthorizeView>
+
+            <MudItem xs="6" sm="4" md="3">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">PENDING DELIVERIES</MudText>
+                    <MudText Typo="Typo.h5" Class="mt-1 tabular-nums">@(_summary.PendingDeliveriesCount + _summary.DispatchedDeliveriesCount)</MudText>
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">@_summary.DispatchedDeliveriesCount in transit</MudText>
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="6" sm="4" md="3">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">LOW / OUT OF STOCK</MudText>
+                    <MudText Typo="Typo.h5" Class="mt-1 tabular-nums" Color="@(_summary.OutOfStockCount > 0 ? Color.Error : Color.Warning)">
+                        @_summary.LowStockCount / @_summary.OutOfStockCount
+                    </MudText>
+                </MudPaper>
+            </MudItem>
+
+            <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")">
+                <MudItem xs="6" sm="4" md="3">
+                    <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                        <MudText Typo="Typo.caption" Color="Color.Tertiary">INVENTORY DISCREPANCIES</MudText>
+                        <MudText Typo="Typo.h5" Class="mt-1 tabular-nums" Color="@(_summary.OpenDiscrepanciesCount > 0 ? Color.Error : Color.Success)">
+                            @_summary.OpenDiscrepanciesCount
+                        </MudText>
+                    </MudPaper>
+                </MudItem>
+            </AuthorizeView>
+        </MudGrid>
+
+        <!-- Actionable Alerts & Recent Activity -->
+        <MudGrid Spacing="3">
+            <MudItem xs="12" md="5">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:14px; height:100%;">
+                    <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mb-3">Important Alerts</MudText>
+                    @if (_summary.Alerts.Count == 0)
+                    {
+                        <MudAlert Severity="Severity.Success" Variant="Variant.Outlined" Dense="true">
+                            All monitored inventory and workflow checks are clear.
+                        </MudAlert>
+                    }
+                    else
+                    {
+                        <MudStack Spacing="2">
+                            @foreach (var alert in _summary.Alerts)
+                            {
+                                var sev = alert.Severity switch
+                                {
+                                    "Error" => Severity.Error,
+                                    "Warning" => Severity.Warning,
+                                    _ => Severity.Info
+                                };
+                                <MudAlert Severity="@sev" Variant="Variant.Outlined" Dense="true">
+                                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+                                        <div>
+                                            <MudText Typo="Typo.body2" Style="font-weight:600;">@alert.Title</MudText>
+                                            <MudText Typo="Typo.caption">@alert.Detail</MudText>
+                                        </div>
+                                        <MudButton Href="@alert.TargetUrl" Size="Size.Small" Variant="Variant.Text">Open</MudButton>
+                                    </MudStack>
+                                </MudAlert>
+                            }
+                        </MudStack>
+                    }
+                </MudPaper>
+            </MudItem>
+
+            <MudItem xs="12" md="7">
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:14px; height:100%;">
+                    <MudText Typo="Typo.h6" Color="Color.Secondary" Class="mb-3">Recent Inventory Ledger Activities</MudText>
+                    <MudTable Items="_summary.RecentActivities" Dense="true" Hover="true" Elevation="0">
+                        <HeaderContent>
+                            <MudTh>Time</MudTh>
+                            <MudTh>Item</MudTh>
+                            <MudTh>Movement</MudTh>
+                            <MudTh Style="text-align:right;">Qty</MudTh>
+                            <MudTh>User</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="Time" Class="tabular-nums">@context.OccurredAt.ToLocalTime().ToString("MM-dd HH:mm")</MudTd>
+                            <MudTd DataLabel="Item">@context.ItemName</MudTd>
+                            <MudTd DataLabel="Movement">@context.MovementType</MudTd>
+                            <MudTd DataLabel="Qty" Style="text-align:right;" Class="tabular-nums">
+                                <span style="color:@(context.QuantityDelta >= 0 ? "#3E7B5A" : "#B84A39"); font-weight:600;">
+                                    @(context.QuantityDelta >= 0 ? "+" : "")@context.QuantityDelta.ToString("0.##") @context.UnitCode
+                                </span>
+                            </MudTd>
+                            <MudTd DataLabel="User">@context.ResponsibleUserName</MudTd>
+                        </RowTemplate>
+                        <NoRecordsContent>
+                            <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No recent inventory movements recorded yet.</MudText>
+                        </NoRecordsContent>
+                    </MudTable>
+                </MudPaper>
+            </MudItem>
+        </MudGrid>
+    </MudStack>
+}
+
+@code {
+    private DashboardSummaryDto? _summary;
+    private bool _loading = true;
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", href: "/", disabled: true)];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _summary = await DashboardService.GetSummaryAsync();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static string GetRoleSubtitle(string? role) => role switch
+    {
+        AppRoles.Owner => "Executive business overview across factory production, store sales, and controls.",
+        AppRoles.Manager => "Operational monitoring, pending deliveries, discrepancies, and closing approvals.",
+        AppRoles.Baker => "Factory raw material availability, daily baking production, and finished goods dispatch.",
+        AppRoles.Cashier => "Store sales, incoming factory delivery verification, and daily closing count.",
+        _ => "RJAM Bakery operations overview."
+    };
+}

@@ -1,0 +1,386 @@
+@page "/deliveries"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker},{AppRoles.Cashier}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IDeliveryService DeliveryService
+@inject IFactoryInventoryService FactoryInventoryService
+@inject ISnackbar Snackbar
+
+<PageTitle>Store Deliveries - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Factory-to-Store Deliveries"
+            Subtitle="Prepare and dispatch finished goods from factory, verify store receiving, and reconcile discrepancies."
+            Breadcrumbs="_breadcrumbs">
+    <Actions>
+        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="_initialLoading" OnClick="StartNewDelivery">
+                Create Delivery
+            </MudButton>
+        </AuthorizeView>
+    </Actions>
+</PageHeader>
+
+<MudStack Spacing="4">
+    @if (_draftForm is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3; border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-3">New Factory-to-Store Delivery (Draft)</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12" sm="4">
+                    <MudTextField @bind-Value="_draftForm.Driver" Label="Driver / Courier Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+                <MudItem xs="12" sm="8">
+                    <MudTextField @bind-Value="_draftForm.Notes" Label="Notes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                </MudItem>
+            </MudGrid>
+
+            <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Products to Deliver</MudText>
+            @foreach (var line in _draftForm.Lines)
+            {
+                <MudGrid Spacing="2" Class="mb-2">
+                    <MudItem xs="12" sm="7">
+                        <MudSelect @bind-Value="line.ProductId" Label="Product (Factory Available)" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var f in _factoryStock)
+                            {
+                                <MudSelectItem Value="f.ProductId">@f.ProductName (Avail: @f.TotalAvailableQuantity.ToString("0.##") @f.UnitCode)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="9" sm="4">
+                        <MudNumericField @bind-Value="line.Quantity" Label="Requested Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
+                    </MudItem>
+                    <MudItem xs="3" sm="1" Class="d-flex align-center">
+                        <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                       Disabled="@(_draftForm.Lines.Count <= 1)"
+                                       OnClick="@(() => _draftForm.Lines.Remove(line))" />
+                    </MudItem>
+                </MudGrid>
+            }
+
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Outlined" Disabled="_saving" OnClick="AddDraftLine">Add Product</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="CreateDraftAsync">
+                    <LoadingButtonContent Loading="_saving" Text="Save Draft Delivery" LoadingText="Saving..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _draftForm = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_receivingTarget is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3; border-radius:14px;">
+            <MudText Typo="Typo.h6" Class="mb-2">Verify &amp; Confirm Store Receiving — @_receivingTarget.DeliveryNumber</MudText>
+            <MudTable Items="_receiveInputs" Dense="true" Elevation="0" Outlined="true">
+                <HeaderContent>
+                    <MudTh>Product</MudTh>
+                    <MudTh>Lot</MudTh>
+                    <MudTh Style="text-align:right;">Dispatched</MudTh>
+                    <MudTh Style="width:150px;">Actual Received</MudTh>
+                    <MudTh>Discrepancy Reason (if different)</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Lot">@context.LotNumber</MudTd>
+                    <MudTd DataLabel="Dispatched" Style="text-align:right;" Class="tabular-nums">@context.DispatchedQty.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="Received">
+                        <MudNumericField @bind-Value="context.ReceivedQty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0m" />
+                    </MudTd>
+                    <MudTd DataLabel="Reason">
+                        <MudTextField @bind-Value="context.Reason" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_saving" OnClick="SubmitReceivingAsync">
+                    <LoadingButtonContent Loading="_saving" Text="Confirm Store Receiving" LoadingText="Confirming..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _receivingTarget = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_reconcileTarget is not null)
+    {
+        <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FDF3F1; border-color:#B84A39; border-radius:14px;">
+            <MudText Typo="Typo.h6" Color="Color.Error" Class="mb-2">Reconcile Delivery Discrepancy — @_reconcileTarget.DeliveryNumber</MudText>
+            <MudTable Items="_reconcileInputs" Dense="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Product</MudTh>
+                    <MudTh Style="text-align:right;">Variance (Disp - Rcv)</MudTh>
+                    <MudTh>Resolution</MudTh>
+                    <MudTh>Manager Remarks</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                    <MudTd DataLabel="Variance" Style="text-align:right;" Class="tabular-nums">@context.DiscrepancyQty.ToString("0.##")</MudTd>
+                    <MudTd DataLabel="Resolution">
+                        <MudSelect @bind-Value="context.ResolutionType" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            <MudSelectItem Value="DiscrepancyResolutionType.TransitLossWriteOff">Transit Loss Write-Off</MudSelectItem>
+                            <MudSelectItem Value="DiscrepancyResolutionType.ReturnToFactoryLot">Returned to Factory Lot</MudSelectItem>
+                            <MudSelectItem Value="DiscrepancyResolutionType.OverageDeductFromFactory">Overage Deduct from Factory</MudSelectItem>
+                        </MudSelect>
+                    </MudTd>
+                    <MudTd DataLabel="Remarks">
+                        <MudTextField @bind-Value="context.Remarks" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudStack Row="true" Spacing="2" Class="mt-3">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SubmitReconcileAsync">
+                    <LoadingButtonContent Loading="_saving" Text="Apply Reconciliation" LoadingText="Applying..." />
+                </MudButton>
+                <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _reconcileTarget = null)">Cancel</MudButton>
+            </MudStack>
+        </MudPaper>
+    }
+
+    @if (_initialLoading)
+    {
+        <PageLoadingSkeleton Variant="Table" Rows="6" />
+    }
+    else
+    {
+    <MudPaper Elevation="0" Outlined="true" Style="border-radius:14px;">
+        <MudTable Items="_deliveries" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+            <HeaderContent>
+                <MudTh>Delivery #</MudTh>
+                <MudTh>Created</MudTh>
+                <MudTh>Driver</MudTh>
+                <MudTh>Items</MudTh>
+                <MudTh>Status</MudTh>
+                <MudTh>Actions</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Delivery #" Class="tabular-nums">@context.DeliveryNumber</MudTd>
+                <MudTd DataLabel="Created">@context.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                <MudTd DataLabel="Driver">@context.DriverOrCourierName</MudTd>
+                <MudTd DataLabel="Items">
+                    @string.Join(", ", context.Items.GroupBy(i => i.ProductName).Select(g => $"{g.Key} ({g.Sum(x => x.RequestedQuantity):0.##})"))
+                </MudTd>
+                <MudTd DataLabel="Status"><StockStatusChip Status="@context.Status.ToString()" /></MudTd>
+                <MudTd DataLabel="Actions">
+                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")" Context="dispAuth">
+                            @if (context.Status == DeliveryStatus.Draft)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => PrepareAsync(context.Id))">Prepare (FEFO)</MudButton>
+                            }
+                            @if (context.Status is DeliveryStatus.Draft or DeliveryStatus.PendingDispatch)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => DispatchAsync(context.Id))">Dispatch</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => CancelAsync(context.Id))">Cancel</MudButton>
+                            }
+                        </AuthorizeView>
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")" Context="rcvAuth">
+                            @if (context.Status == DeliveryStatus.Dispatched)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => StartReceive(context))">Receive</MudButton>
+                            }
+                        </AuthorizeView>
+                        <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="recAuth">
+                            @if (context.Status == DeliveryStatus.PartiallyReceived)
+                            {
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => StartReconcile(context))">Reconcile</MudButton>
+                            }
+                        </AuthorizeView>
+                    </MudStack>
+                </MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No deliveries recorded yet.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+    </MudPaper>
+    }
+</MudStack>
+
+@code {
+    private sealed class DraftLine { public int ProductId { get; set; } public decimal Quantity { get; set; } = 1m; }
+    private sealed class DraftForm { public string Driver { get; set; } = string.Empty; public string Notes { get; set; } = string.Empty; public List<DraftLine> Lines { get; } = []; }
+
+    private sealed class ReceiveLineModel
+    {
+        public long DeliveryItemId { get; init; }
+        public string ProductName { get; init; } = string.Empty;
+        public string LotNumber { get; init; } = string.Empty;
+        public decimal DispatchedQty { get; init; }
+        public decimal ReceivedQty { get; set; }
+        public string Reason { get; set; } = string.Empty;
+    }
+
+    private sealed class ReconcileLineModel
+    {
+        public long DeliveryItemId { get; init; }
+        public string ProductName { get; init; } = string.Empty;
+        public decimal DiscrepancyQty { get; init; }
+        public DiscrepancyResolutionType ResolutionType { get; set; }
+        public string Remarks { get; set; } = string.Empty;
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Deliveries", null, true)];
+    private List<DeliveryDto> _deliveries = [];
+    private List<FactoryProductSummaryDto> _factoryStock = [];
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+
+    private DraftForm? _draftForm;
+    private DeliveryDto? _receivingTarget;
+    private List<ReceiveLineModel> _receiveInputs = [];
+    private DeliveryDto? _reconcileTarget;
+    private List<ReconcileLineModel> _reconcileInputs = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { await LoadAsync(); }
+        finally { _initialLoading = false; }
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        try
+        {
+            _deliveries = (await DeliveryService.GetPagedAsync(new DeliveryQuery(PageSize: 50))).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task StartNewDelivery()
+    {
+        _factoryStock = (await FactoryInventoryService.GetProductSummaryAsync())
+            .Where(f => f.TotalAvailableQuantity > 0).ToList();
+        if (_factoryStock.Count == 0)
+        {
+            Snackbar.Add("No available factory finished goods to deliver.", Severity.Warning);
+            return;
+        }
+        _draftForm = new DraftForm();
+        AddDraftLine();
+    }
+
+    private void AddDraftLine()
+    {
+        if (_factoryStock.Count > 0)
+            _draftForm?.Lines.Add(new DraftLine { ProductId = _factoryStock[0].ProductId, Quantity = 1m });
+    }
+
+    private async Task CreateDraftAsync()
+    {
+        if (_draftForm is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await DeliveryService.CreateDraftAsync(new CreateDeliveryRequest(
+                _draftForm.Driver, _draftForm.Notes,
+                _draftForm.Lines.Select(l => new DeliveryItemInput(l.ProductId, l.Quantity)).ToList()));
+            Snackbar.Add("Draft delivery created.", Severity.Success);
+            _draftForm = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task PrepareAsync(long id)
+    {
+        try
+        {
+            await DeliveryService.PrepareForDispatchAsync(id);
+            Snackbar.Add("Delivery prepared and factory stock lots reserved.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task DispatchAsync(long id)
+    {
+        try
+        {
+            await DeliveryService.DispatchAsync(id);
+            Snackbar.Add("Delivery dispatched to store.", Severity.Success);
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private async Task CancelAsync(long id)
+    {
+        try
+        {
+            await DeliveryService.CancelAsync(id, "Cancelled before dispatch");
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+    }
+
+    private void StartReceive(DeliveryDto d)
+    {
+        _receivingTarget = d;
+        _receiveInputs = d.Items.Select(i => new ReceiveLineModel
+        {
+            DeliveryItemId = i.Id,
+            ProductName = i.ProductName,
+            LotNumber = i.LotNumber ?? "-",
+            DispatchedQty = i.DispatchedQuantity,
+            ReceivedQty = i.DispatchedQuantity
+        }).ToList();
+    }
+
+    private async Task SubmitReceivingAsync()
+    {
+        if (_receivingTarget is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await DeliveryService.ConfirmReceivingAsync(_receivingTarget.Id, new ConfirmDeliveryReceivingRequest(
+                null,
+                _receiveInputs.Select(r => new ReceiveDeliveryItemInput(r.DeliveryItemId, r.ReceivedQty, r.Reason)).ToList()));
+            Snackbar.Add("Store receiving confirmed and store inventory updated.", Severity.Success);
+            _receivingTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+
+    private void StartReconcile(DeliveryDto d)
+    {
+        _reconcileTarget = d;
+        _reconcileInputs = d.Items
+            .Where(i => i.ReconciliationStatus == ReconciliationStatus.PendingReview)
+            .Select(i => new ReconcileLineModel
+            {
+                DeliveryItemId = i.Id,
+                ProductName = i.ProductName,
+                DiscrepancyQty = i.DiscrepancyQuantity,
+                ResolutionType = i.DiscrepancyQuantity > 0
+                    ? DiscrepancyResolutionType.TransitLossWriteOff
+                    : DiscrepancyResolutionType.OverageDeductFromFactory
+            }).ToList();
+    }
+
+    private async Task SubmitReconcileAsync()
+    {
+        if (_reconcileTarget is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await DeliveryService.ReconcileDiscrepancyAsync(_reconcileTarget.Id, new ReconcileDeliveryRequest(
+                _reconcileInputs.Select(r => new ReconcileDeliveryItemInput(r.DeliveryItemId, r.ResolutionType, r.Remarks)).ToList()));
+            Snackbar.Add("Discrepancies reconciled.", Severity.Success);
+            _reconcileTarget = null;
+            await LoadAsync();
+        }
+        catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _saving = false; }
+    }
+}

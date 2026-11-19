@@ -1,0 +1,33 @@
+@page "/Error"
+@layout RjamBakery.Web.Components.Layout.AuthLayout
+@attribute [Microsoft.AspNetCore.Authorization.AllowAnonymous]
+@using System.Diagnostics
+
+<PageTitle>Something Went Wrong - RJAM Bakery</PageTitle>
+
+<div style="text-align:center;">
+    <h2 style="margin:0 0 8px 0; font-size:1.25rem; color:#B84A39;">Something Went Wrong</h2>
+    <p style="margin:0 0 18px 0; font-size:0.88rem; color:#6F5B53; line-height:1.5;">
+        An unexpected error occurred while processing your request. Please try again or contact the bakery administrator if the issue persists.
+    </p>
+
+    @if (ShowRequestId)
+    {
+        <div style="background:#FBF7F3; border:1px solid #E6DBD1; border-radius:8px; padding:10px 12px; margin-bottom:18px; font-size:0.8rem; color:#6F5B53;">
+            Reference ID: <code style="color:#2E1C16; font-weight:600;">@RequestId</code>
+        </div>
+    }
+
+    <a href="/" class="auth-btn" style="display:block; text-align:center; text-decoration:none;">Return to RJAM Bakery</a>
+</div>
+
+@code {
+    [CascadingParameter]
+    private HttpContext? HttpContext { get; set; }
+
+    private string? RequestId { get; set; }
+    private bool ShowRequestId => !string.IsNullOrEmpty(RequestId);
+
+    protected override void OnInitialized() =>
+        RequestId = Activity.Current?.Id ?? HttpContext?.TraceIdentifier;
+}

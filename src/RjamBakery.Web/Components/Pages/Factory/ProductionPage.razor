@@ -1,0 +1,477 @@
+@page "/production"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject IProductionService ProductionService
+@inject IRecipeService RecipeService
+@inject IProductService ProductService
+@inject IRawMaterialService RawMaterialService
+@inject ISnackbar Snackbar
+
+<PageTitle>Production &amp; Recipes - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Bakery Production &amp; Recipes"
+            Subtitle="Calculate ingredient needs from configured recipes, record daily production, and manage recipe versions."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-4" Style="background:#FFFFFF; border-radius:14px;">
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Baker}")" Context="prodAuth">
+        <MudTabPanel Text="Record Production">
+            <MudStack Spacing="3">
+                <MudGrid Spacing="2">
+                    <MudItem xs="12" sm="4">
+                        <MudSelect @bind-Value="_prodProductId" Label="Bakery Product" Variant="Variant.Outlined" Margin="Margin.Dense">
+                            @foreach (var p in _products)
+                            {
+                                <MudSelectItem Value="p.Id">@p.Name (@p.Sku)</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="6" sm="2">
+                        <MudNumericField @bind-Value="_plannedQty" Label="Planned Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
+                    </MudItem>
+                    <MudItem xs="6" sm="2">
+                        <MudNumericField @bind-Value="_actualQty" Label="Actual Output" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
+                    </MudItem>
+                    <MudItem xs="12" sm="2">
+                        <MudDatePicker @bind-Date="_productionDate" Label="Production Date" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                    <MudItem xs="12" sm="2" Class="d-flex align-center">
+                        <MudButton Variant="Variant.Outlined" Color="Color.Secondary" FullWidth="true" Disabled="_checkingRecipe" OnClick="PreviewIngredientsAsync">
+                            <LoadingButtonContent Loading="_checkingRecipe" Text="Check Recipe" LoadingText="Checking..." />
+                        </MudButton>
+                    </MudItem>
+                    <MudItem xs="12">
+                        <MudTextField @bind-Value="_prodRemarks" Label="Batch Remarks" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                    </MudItem>
+                </MudGrid>
+
+                @if (_preview is not null)
+                {
+                    @if (_preview.IsOutsideFactoryHours)
+                    {
+                        <MudAlert Severity="Severity.Warning" Variant="Variant.Outlined" Dense="true">
+                            Current time is outside configured factory production hours. Check system schedule policy if applicable.
+                        </MudAlert>
+                    }
+
+                    @if (_preview.RecipeId is null)
+                    {
+                        <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                            No active recipe is configured for @_preview.ProductName yet. You can add ingredients manually or confirm production without a recipe.
+                        </MudAlert>
+                        <MudCheckBox @bind-Value="_confirmNoRecipe" Label="Confirm production without configured recipe ingredients" />
+                    }
+                    else
+                    {
+                        <MudText Typo="Typo.subtitle1">
+                            Scaled Ingredients — Recipe v@_preview.RecipeVersionNumber (Target: @_preview.TargetOutputQuantity.ToString("0.##") @_preview.OutputUnitCode)
+                        </MudText>
+                        @if (!_preview.AllIngredientsSufficient)
+                        {
+                            <MudAlert Severity="Severity.Error" Variant="Variant.Outlined" Dense="true">
+                                One or more ingredients do not have enough stock. Production cannot be finalized until materials are received.
+                            </MudAlert>
+                        }
+                    }
+
+                    @if (_consumptionLines.Count > 0)
+                    {
+                        <MudTable Items="_consumptionLines" Dense="true" Elevation="0" Outlined="true">
+                            <HeaderContent>
+                                <MudTh>Ingredient</MudTh>
+                                <MudTh Style="text-align:right;">Recipe Required</MudTh>
+                                <MudTh Style="text-align:right;">Available Stock</MudTh>
+                                <MudTh Style="width:180px;">Confirmed Consumed</MudTh>
+                                <MudTh>Status</MudTh>
+                            </HeaderContent>
+                            <RowTemplate>
+                                <MudTd DataLabel="Ingredient">@context.Name</MudTd>
+                                <MudTd DataLabel="Required" Style="text-align:right;" Class="tabular-nums">@context.Required.ToString("0.####") @context.UnitCode</MudTd>
+                                <MudTd DataLabel="Available" Style="text-align:right;" Class="tabular-nums">@context.Available.ToString("0.####") @context.UnitCode</MudTd>
+                                <MudTd DataLabel="Confirmed">
+                                    <MudNumericField @bind-Value="context.ConfirmedConsumed" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.0001m" />
+                                </MudTd>
+                                <MudTd DataLabel="Status">
+                                    <StockStatusChip Status="@(context.Available >= context.ConfirmedConsumed ? "In Stock" : "Out of Stock")" />
+                                </MudTd>
+                            </RowTemplate>
+                        </MudTable>
+                    }
+
+                    <MudStack Row="true" Spacing="2">
+                        <MudButton Variant="Variant.Filled"
+                                   Color="Color.Primary"
+                                   Disabled="@(_submitting || (_preview.RecipeId is not null && !_preview.AllIngredientsSufficient))"
+                                   OnClick="FinalizeProductionAsync">
+                            <LoadingButtonContent Loading="_submitting" Text="Confirm & Finalize Production" LoadingText="Finalizing..." />
+                        </MudButton>
+                    </MudStack>
+                }
+            </MudStack>
+        </MudTabPanel>
+    </AuthorizeView>
+
+    <MudTabPanel Text="Production History">
+        @if (_initialLoading)
+        {
+            <PageLoadingSkeleton Variant="Table" Rows="5" />
+        }
+        else
+        {
+        <MudTable Items="_batches" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+            <HeaderContent>
+                <MudTh>Batch Ref</MudTh>
+                <MudTh>Date</MudTh>
+                <MudTh>Product</MudTh>
+                <MudTh>Recipe Ver</MudTh>
+                <MudTh Style="text-align:right;">Planned</MudTh>
+                <MudTh Style="text-align:right;">Produced</MudTh>
+                <MudTh>Baker</MudTh>
+                <MudTh>Status</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Batch Ref" Class="tabular-nums">@context.BatchReference</MudTd>
+                <MudTd DataLabel="Date">@context.ProductionDate.ToString("yyyy-MM-dd")</MudTd>
+                <MudTd DataLabel="Product">@context.ProductName</MudTd>
+                <MudTd DataLabel="Recipe Ver">@(context.RecipeVersionSnapshot.HasValue ? $"v{context.RecipeVersionSnapshot}" : "No Recipe")</MudTd>
+                <MudTd DataLabel="Planned" Style="text-align:right;" Class="tabular-nums">@context.PlannedQuantity.ToString("0.##") @context.OutputUnitCode</MudTd>
+                <MudTd DataLabel="Produced" Style="text-align:right;" Class="tabular-nums">@context.ActualQuantity.ToString("0.##") @context.OutputUnitCode</MudTd>
+                <MudTd DataLabel="Baker">@context.BakerUserName</MudTd>
+                <MudTd DataLabel="Status"><StockStatusChip Status="@context.Status.ToString()" /></MudTd>
+            </RowTemplate>
+            <NoRecordsContent>
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No production batches recorded yet.</MudText>
+            </NoRecordsContent>
+        </MudTable>
+        }
+    </MudTabPanel>
+
+    <MudTabPanel Text="Recipes (BOM)">
+        <MudStack Spacing="3">
+            <MudStack Row="true" Spacing="2" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap">
+                <MudSelect @bind-Value="_recipeProductId" Label="Select Product" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:200px; max-width:100%; flex:1 1 220px;">
+                    @foreach (var p in _products)
+                    {
+                        <MudSelectItem Value="p.Id">@p.Name (@p.BaseUnitCode)</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudButton Variant="Variant.Outlined" OnClick="LoadRecipeHistoryAsync">Load Recipes</MudButton>
+                <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="recAuth">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartNewRecipeVersion">
+                        Create / Update Recipe Version
+                    </MudButton>
+                </AuthorizeView>
+            </MudStack>
+
+            @if (_recipeForm is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6" Class="mb-3">New Recipe Version</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="3">
+                            <MudNumericField @bind-Value="_recipeForm.BatchYield" Label="Batch Yield Output" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.0001m" />
+                        </MudItem>
+                        <MudItem xs="12" sm="3">
+                            <MudSelect @bind-Value="_recipeForm.YieldUnitId" Label="Yield Unit" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var u in _units)
+                                {
+                                    <MudSelectItem Value="u.Id">@u.Code</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_recipeForm.Notes" Label="Recipe Notes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-3 mb-2">Ingredients</MudText>
+                    @foreach (var ing in _recipeForm.Ingredients)
+                    {
+                        <MudGrid Spacing="2" Class="mb-2">
+                            <MudItem xs="12" sm="5">
+                                <MudSelect @bind-Value="ing.RawMaterialId" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var m in _materials)
+                                    {
+                                        <MudSelectItem Value="m.Id">@m.Name (@m.UnitCode)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudNumericField @bind-Value="ing.Quantity" Label="Required Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.0001m" />
+                            </MudItem>
+                            <MudItem xs="6" sm="3">
+                                <MudSelect @bind-Value="ing.UnitId" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var u in _units)
+                                    {
+                                        <MudSelectItem Value="u.Id">@u.Code</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="12" sm="1" Class="d-flex align-center">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                               Disabled="@(_recipeForm.Ingredients.Count <= 1)"
+                                               OnClick="@(() => _recipeForm.Ingredients.Remove(ing))" />
+                            </MudItem>
+                        </MudGrid>
+                    }
+
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Outlined" Disabled="_savingRecipe" OnClick="AddRecipeIngredient">Add Ingredient</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_savingRecipe" OnClick="SaveRecipeAsync">
+                            <LoadingButtonContent Loading="_savingRecipe" Text="Save New Version" LoadingText="Saving..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_savingRecipe" OnClick="@(() => _recipeForm = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @foreach (var r in _recipeHistory)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="border-radius:12px;">
+                    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2" Class="mb-2">
+                        <MudText Typo="Typo.subtitle1" Style="font-weight:700;">
+                            @r.ProductName — Version @r.VersionNumber (Yield: @r.BatchYieldQuantity.ToString("0.##") @r.YieldUnitCode)
+                        </MudText>
+                        <MudChip T="string" Size="Size.Small" Color="@(r.IsActive ? Color.Success : Color.Default)">
+                            @(r.IsActive ? "Active Recipe" : "Historical Version")
+                        </MudChip>
+                    </MudStack>
+                    <MudText Typo="Typo.caption" Color="Color.Tertiary">
+                        Created by @r.CreatedByUserName on @r.CreatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm")
+                    </MudText>
+                    <MudTable Items="r.Ingredients" Dense="true" Elevation="0" Class="mt-2">
+                        <HeaderContent>
+                            <MudTh>SKU</MudTh>
+                            <MudTh>Ingredient</MudTh>
+                            <MudTh Style="text-align:right;">Required Quantity</MudTh>
+                        </HeaderContent>
+                        <RowTemplate>
+                            <MudTd DataLabel="SKU">@context.RawMaterialSku</MudTd>
+                            <MudTd DataLabel="Ingredient">@context.RawMaterialName</MudTd>
+                            <MudTd DataLabel="Required" Style="text-align:right;" Class="tabular-nums">@context.QuantityRequired.ToString("0.####") @context.UnitCode</MudTd>
+                        </RowTemplate>
+                    </MudTable>
+                </MudPaper>
+            }
+        </MudStack>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private sealed class ConsumptionRow
+    {
+        public int RawMaterialId { get; init; }
+        public string Name { get; init; } = string.Empty;
+        public decimal Required { get; init; }
+        public decimal Available { get; init; }
+        public string UnitCode { get; init; } = string.Empty;
+        public int UnitId { get; init; }
+        public decimal ConfirmedConsumed { get; set; }
+    }
+
+    private sealed class RecipeIngredientForm
+    {
+        public int RawMaterialId { get; set; }
+        public decimal Quantity { get; set; } = 1m;
+        public int UnitId { get; set; }
+    }
+
+    private sealed class RecipeForm
+    {
+        public decimal BatchYield { get; set; } = 100m;
+        public int YieldUnitId { get; set; }
+        public string Notes { get; set; } = string.Empty;
+        public List<RecipeIngredientForm> Ingredients { get; } = [];
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Production & Recipes", null, true)];
+    private List<ProductDto> _products = [];
+    private List<RawMaterialDto> _materials = [];
+    private List<UnitOfMeasureDto> _units = [];
+    private List<ProductionBatchDto> _batches = [];
+
+    private int _prodProductId;
+    private decimal _plannedQty = 100m;
+    private decimal _actualQty = 100m;
+    private DateTime? _productionDate = DateTime.Today;
+    private string _prodRemarks = string.Empty;
+    private bool _confirmNoRecipe;
+    private bool _checkingRecipe;
+    private bool _savingRecipe;
+    private bool _submitting;
+    private bool _loading = true;
+    private bool _initialLoading = true;
+
+    private ProductionRequirementPreviewDto? _preview;
+    private List<ConsumptionRow> _consumptionLines = [];
+
+    private int _recipeProductId;
+    private List<RecipeDto> _recipeHistory = [];
+    private RecipeForm? _recipeForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
+            _products = (await ProductService.GetPagedAsync(new ProductQuery(PageSize: 200))).Items.ToList();
+            _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
+
+            if (_products.Count > 0)
+            {
+                _prodProductId = _products[0].Id;
+                _recipeProductId = _products[0].Id;
+                await LoadRecipeHistoryAsync();
+            }
+
+            await LoadBatchesAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadBatchesAsync()
+    {
+        _loading = true;
+        try
+        {
+            _batches = (await ProductionService.GetPagedAsync(new ProductionQuery(PageSize: 50))).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task PreviewIngredientsAsync()
+    {
+        if (_prodProductId <= 0 || _checkingRecipe) return;
+        _checkingRecipe = true;
+        try
+        {
+            _actualQty = _plannedQty;
+            _preview = await RecipeService.CalculateRequirementsAsync(_prodProductId, _plannedQty);
+            _consumptionLines = _preview.Ingredients.Select(i =>
+            {
+                var mat = _materials.FirstOrDefault(m => m.Id == i.RawMaterialId);
+                return new ConsumptionRow
+                {
+                    RawMaterialId = i.RawMaterialId,
+                    Name = i.RawMaterialName,
+                    Required = i.RequiredInBaseUnit,
+                    Available = i.AvailableInBaseUnit,
+                    UnitCode = i.BaseUnitCode,
+                    UnitId = mat?.UnitId ?? _units.FirstOrDefault()?.Id ?? 1,
+                    ConfirmedConsumed = i.RequiredInBaseUnit
+                };
+            }).ToList();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _checkingRecipe = false;
+        }
+    }
+
+    private async Task FinalizeProductionAsync()
+    {
+        if (_submitting || _preview is null) return;
+        _submitting = true;
+        try
+        {
+            var prodDate = DateOnly.FromDateTime(_productionDate ?? DateTime.Today);
+            await ProductionService.FinalizeProductionAsync(new FinalizeProductionRequest(
+                null,
+                _prodProductId,
+                _plannedQty,
+                _actualQty,
+                prodDate,
+                null,
+                _prodRemarks,
+                _consumptionLines.Select(c => new ProductionConsumptionInput(c.RawMaterialId, c.ConfirmedConsumed, c.UnitId)).ToList(),
+                ConfirmNoRecipe: _confirmNoRecipe,
+                IdempotencyKey: $"PRD-{Guid.NewGuid():N}"[..32]));
+
+            Snackbar.Add("Production finalized. Raw materials deducted and finished goods lot created.", Severity.Success);
+            _preview = null;
+            _consumptionLines.Clear();
+            _prodRemarks = string.Empty;
+            _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
+            await LoadBatchesAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _submitting = false;
+        }
+    }
+
+    private async Task LoadRecipeHistoryAsync()
+    {
+        if (_recipeProductId <= 0) return;
+        _recipeHistory = (await RecipeService.GetHistoryByProductAsync(_recipeProductId)).ToList();
+    }
+
+    private void StartNewRecipeVersion()
+    {
+        if (_materials.Count == 0)
+        {
+            Snackbar.Add("Register raw materials before creating a recipe.", Severity.Warning);
+            return;
+        }
+
+        var prod = _products.FirstOrDefault(p => p.Id == _recipeProductId) ?? _products.FirstOrDefault();
+        if (prod is null)
+        {
+            Snackbar.Add("Register a bakery product before creating a recipe.", Severity.Warning);
+            return;
+        }
+
+        _recipeProductId = prod.Id;
+        _recipeForm = new RecipeForm { YieldUnitId = prod.BaseUnitId };
+        AddRecipeIngredient();
+    }
+
+    private void AddRecipeIngredient()
+    {
+        var first = _materials.First();
+        _recipeForm?.Ingredients.Add(new RecipeIngredientForm { RawMaterialId = first.Id, UnitId = first.UnitId, Quantity = 1m });
+    }
+
+    private async Task SaveRecipeAsync()
+    {
+        if (_recipeForm is null || _savingRecipe) return;
+        _savingRecipe = true;
+        try
+        {
+            await RecipeService.SaveNewVersionAsync(new SaveRecipeRequest(
+                _recipeProductId,
+                _recipeForm.BatchYield,
+                _recipeForm.YieldUnitId,
+                _recipeForm.Notes,
+                _recipeForm.Ingredients.Select(i => new RecipeIngredientInput(i.RawMaterialId, i.Quantity, i.UnitId)).ToList()));
+
+            Snackbar.Add("Saved new active recipe version.", Severity.Success);
+            _recipeForm = null;
+            await LoadRecipeHistoryAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally
+        {
+            _savingRecipe = false;
+        }
+    }
+}

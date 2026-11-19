@@ -1,0 +1,92 @@
+<MudNavMenu Class="rjam-nav py-2">
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Dashboard">
+        Dashboard
+    </MudNavLink>
+
+    <AuthorizeView Roles="@AppRoles.Owner">
+        <MudNavLink Href="/products" Icon="@Icons.Material.Filled.Category">
+            Products &amp; Categories
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")">
+        <MudText Typo="Typo.overline" Class="rjam-nav-group px-4 pt-2 pb-1 d-block">
+            Factory
+        </MudText>
+        <MudNavLink Href="/raw-materials" Icon="@Icons.Material.Filled.Kitchen">
+            Raw Materials
+        </MudNavLink>
+        <MudNavLink Href="/suppliers" Icon="@Icons.Material.Filled.LocalShipping">
+            Suppliers &amp; Receiving
+        </MudNavLink>
+        <MudNavLink Href="/production" Icon="@Icons.Material.Filled.BakeryDining">
+            Production &amp; Recipes
+        </MudNavLink>
+        <MudNavLink Href="/factory-inventory" Icon="@Icons.Material.Filled.Inventory2">
+            Factory Inventory
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker},{AppRoles.Cashier}")">
+        <MudText Typo="Typo.overline" Class="rjam-nav-group px-4 pt-2 pb-1 d-block">
+            Store &amp; Operations
+        </MudText>
+        <MudNavLink Href="/deliveries" Icon="@Icons.Material.Filled.MoveToInbox">
+            Deliveries
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")">
+        <MudNavLink Href="/store-inventory" Icon="@Icons.Material.Filled.Storefront">
+            Store Inventory
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Cashier}")">
+        <MudNavLink Href="/pos" Icon="@Icons.Material.Filled.PointOfSale">
+            POS
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")">
+        <MudNavLink Href="/sales-history" Icon="@Icons.Material.Filled.ReceiptLong">
+            Sales History
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker},{AppRoles.Cashier}")">
+        <MudNavLink Href="/returns-waste" Icon="@Icons.Material.Filled.ReportProblem">
+            Returns &amp; Waste
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")">
+        <MudNavLink Href="/daily-closing" Icon="@Icons.Material.Filled.FactCheck">
+            Daily Closing
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")">
+        <MudText Typo="Typo.overline" Class="rjam-nav-group px-4 pt-2 pb-1 d-block">
+            Management
+        </MudText>
+        <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.Assessment">
+            Reports
+        </MudNavLink>
+        <MudNavLink Href="/audit-logs" Icon="@Icons.Material.Filled.Policy">
+            Audit Logs
+        </MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Roles="@AppRoles.Owner">
+        <MudText Typo="Typo.overline" Class="rjam-nav-group px-4 pt-2 pb-1 d-block">
+            Administration
+        </MudText>
+        <MudNavLink Href="/users" Icon="@Icons.Material.Filled.ManageAccounts">
+            User Management
+        </MudNavLink>
+        <MudNavLink Href="/settings" Icon="@Icons.Material.Filled.Settings">
+            Settings
+        </MudNavLink>
+    </AuthorizeView>
+</MudNavMenu>

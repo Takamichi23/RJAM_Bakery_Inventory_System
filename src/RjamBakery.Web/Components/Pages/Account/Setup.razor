@@ -1,0 +1,140 @@
+@page "/Account/Setup"
+@layout RjamBakery.Web.Components.Layout.AuthLayout
+@using System.ComponentModel.DataAnnotations
+@using Microsoft.AspNetCore.Identity
+@using Microsoft.EntityFrameworkCore
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Common
+@using RjamBakery.Domain.Entities
+@using RjamBakery.Infrastructure.Persistence
+
+@inject UserManager<ApplicationUser> UserManager
+@inject SignInManager<ApplicationUser> SignInManager
+@inject AppDbContext Db
+@inject IAuditLogService Audit
+@inject NavigationManager Navigation
+
+<h2 style="margin:0 0 6px 0; font-size:1.25rem; color:#2E1C16;">Initial Owner Setup</h2>
+<p style="margin:0 0 20px 0; font-size:0.85rem; color:#6F5B53;">
+    No staff accounts exist yet. Create the initial Owner / Administrator account to initialize RJAM Bakery.
+</p>
+
+@if (!string.IsNullOrEmpty(_errorMessage))
+{
+    <div class="auth-alert-error">@_errorMessage</div>
+}
+
+<EditForm Model="Input" method="post" FormName="OwnerSetupForm" OnValidSubmit="HandleSetupAsync" class="auth-submit-form" data-loading-text="Creating owner account & initializing bakery...">
+    <DataAnnotationsValidator />
+    <ValidationSummary style="color:#B84A39; font-size:0.82rem; margin-bottom:12px;" />
+
+    <div class="auth-field">
+        <label class="auth-label" for="fullname">Full Name</label>
+        <InputText id="fullname" class="auth-input" @bind-Value="Input.FullName" />
+    </div>
+
+    <div class="auth-field">
+        <label class="auth-label" for="username">Username</label>
+        <InputText id="username" class="auth-input" @bind-Value="Input.UserName" />
+    </div>
+
+    <div class="auth-field">
+        <label class="auth-label" for="email">Email Address</label>
+        <InputText id="email" type="email" class="auth-input" @bind-Value="Input.Email" />
+    </div>
+
+    <div class="auth-field">
+        <label class="auth-label" for="password">Password (min 8 chars, upper, lower, digit)</label>
+        <InputText id="password" type="password" class="auth-input" @bind-Value="Input.Password" />
+    </div>
+
+    <button type="submit" class="auth-btn">Create Owner Account</button>
+</EditForm>
+
+@code {
+    private static readonly SemaphoreSlim SetupGate = new(1, 1);
+
+    [SupplyParameterFromForm]
+    private SetupInputModel Input { get; set; } = new();
+
+    private string? _errorMessage;
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (await Db.Users.AsNoTracking().AnyAsync())
+        {
+            Navigation.NavigateTo("/Account/Login", replace: true);
+        }
+    }
+
+    private async Task HandleSetupAsync()
+    {
+        await SetupGate.WaitAsync();
+        try
+        {
+            if (await Db.Users.AsNoTracking().AnyAsync())
+            {
+                Navigation.NavigateTo("/Account/Login", replace: true);
+                return;
+            }
+
+            var owner = new ApplicationUser
+            {
+                UserName = Input.UserName.Trim(),
+                Email = Input.Email.Trim(),
+                FullName = Input.FullName.Trim(),
+                EmailConfirmed = true,
+                IsActive = true,
+                CreatedAt = DateTime.UtcNow,
+                LastLoginAt = DateTime.UtcNow
+            };
+
+            var createResult = await UserManager.CreateAsync(owner, Input.Password);
+            if (!createResult.Succeeded)
+            {
+                _errorMessage = string.Join("; ", createResult.Errors.Select(e => e.Description));
+                return;
+            }
+
+            var roleResult = await UserManager.AddToRoleAsync(owner, AppRoles.Owner);
+            if (!roleResult.Succeeded)
+            {
+                _errorMessage = string.Join("; ", roleResult.Errors.Select(e => e.Description));
+                return;
+            }
+
+            await Audit.AddAuditEntryAsync(
+                "InitialOwnerSetup",
+                nameof(ApplicationUser),
+                owner.Id,
+                $"Initialized system with Owner account '{owner.UserName}'.",
+                explicitUserId: owner.Id,
+                explicitUserName: owner.UserName ?? string.Empty,
+                explicitUserRole: AppRoles.Owner);
+            await Db.SaveChangesAsync();
+
+            await SignInManager.SignInAsync(owner, isPersistent: false);
+        }
+        finally
+        {
+            SetupGate.Release();
+        }
+
+        Navigation.NavigateTo("/", forceLoad: true);
+    }
+
+    private sealed class SetupInputModel
+    {
+        [Required, MaxLength(120)]
+        public string FullName { get; set; } = string.Empty;
+
+        [Required, MinLength(3), MaxLength(50)]
+        public string UserName { get; set; } = string.Empty;
+
+        [Required, EmailAddress, MaxLength(150)]
+        public string Email { get; set; } = string.Empty;
+
+        [Required, MinLength(8)]
+        public string Password { get; set; } = string.Empty;
+    }
+}

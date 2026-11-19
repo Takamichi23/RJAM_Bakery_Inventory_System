@@ -1,0 +1,381 @@
+@page "/suppliers"
+@attribute [Authorize(Roles = $"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")]
+@using RjamBakery.Application.Contracts
+@using RjamBakery.Application.Services
+@using RjamBakery.Domain.Enums
+@inject ISupplierService SupplierService
+@inject IMaterialReceiptService ReceiptService
+@inject IRawMaterialService RawMaterialService
+@inject IProductService ProductService
+@inject ISystemSettingService SettingService
+@inject ISnackbar Snackbar
+
+<PageTitle>Suppliers &amp; Material Receiving - RJAM Bakery</PageTitle>
+
+<PageHeader Title="Suppliers &amp; Material Receiving"
+            Subtitle="Manage bakery ingredient suppliers and confirm incoming raw material deliveries."
+            Breadcrumbs="_breadcrumbs" />
+
+<MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-4" Style="background:#FFFFFF; border-radius:14px;">
+    <MudTabPanel Text="Material Receiving">
+        <MudStack Spacing="3">
+            <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+                <MudText Typo="Typo.subtitle1">Supplier Receiving Records</MudText>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartNewReceipt">
+                    Record Delivery Receipt
+                </MudButton>
+            </MudStack>
+
+            @if (_newReceipt is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6" Class="mb-3">New Material Receiving (Draft)</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="5">
+                            <MudSelect @bind-Value="_newReceipt.SupplierId" Label="Supplier" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                @foreach (var s in _suppliers.Where(x => x.Status == SupplierStatus.Active))
+                                {
+                                    <MudSelectItem Value="s.Id">@s.Name</MudSelectItem>
+                                }
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12" sm="7">
+                            <MudTextField @bind-Value="_newReceipt.Remarks" Label="Remarks / Delivery Note #" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+
+                    <MudText Typo="Typo.subtitle2" Class="mt-4 mb-2">Received Items</MudText>
+                    @foreach (var line in _newReceipt.Lines)
+                    {
+                        <MudGrid Spacing="2" Class="mb-2">
+                            <MudItem xs="12" sm="4">
+                                <MudSelect @bind-Value="line.RawMaterialId" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var m in _materials)
+                                    {
+                                        <MudSelectItem Value="m.Id">@m.Name (@m.UnitCode)</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudNumericField @bind-Value="line.Quantity" Label="Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0.0001m" />
+                            </MudItem>
+                            <MudItem xs="6" sm="2">
+                                <MudSelect @bind-Value="line.UnitId" Label="Unit" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                    @foreach (var u in _units)
+                                    {
+                                        <MudSelectItem Value="u.Id">@u.Code</MudSelectItem>
+                                    }
+                                </MudSelect>
+                            </MudItem>
+                            <MudItem xs="8" sm="3">
+                                <MudNumericField @bind-Value="line.UnitCost" Label="Unit Cost (opt)" Variant="Variant.Outlined" Margin="Margin.Dense" Min="0m" Clearable="true"
+                                                 Adornment="Adornment.Start" AdornmentText="@_currency" />
+                            </MudItem>
+                            <MudItem xs="4" sm="1" Class="d-flex align-center">
+                                <MudIconButton Icon="@Icons.Material.Filled.Delete" Color="Color.Error"
+                                               Disabled="@(_newReceipt.Lines.Count <= 1)"
+                                               OnClick="@(() => _newReceipt.Lines.Remove(line))" />
+                            </MudItem>
+                        </MudGrid>
+                    }
+
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Outlined" Disabled="_saving" OnClick="AddReceiptLine">Add Line</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveReceiptDraftAsync">
+                            <LoadingButtonContent Loading="_saving" Text="Save Draft" LoadingText="Saving..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _newReceipt = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            @if (_initialLoading)
+            {
+                <PageLoadingSkeleton Variant="Table" Rows="5" />
+            }
+            else
+            {
+            <MudTable Items="_receipts" Dense="true" Hover="true" Elevation="0" Loading="@(_loading && !_initialLoading)">
+                <HeaderContent>
+                    <MudTh>Receipt #</MudTh>
+                    <MudTh>Supplier</MudTh>
+                    <MudTh>Date</MudTh>
+                    <MudTh>Items</MudTh>
+                    <MudTh Style="text-align:right;">Total Cost</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Receipt #" Class="tabular-nums">@context.ReceiptNumber</MudTd>
+                    <MudTd DataLabel="Supplier">@context.SupplierName</MudTd>
+                    <MudTd DataLabel="Date">@context.ReceivingDate.ToLocalTime().ToString("yyyy-MM-dd HH:mm")</MudTd>
+                    <MudTd DataLabel="Items">
+                        @string.Join(", ", context.Items.Select(i => $"{i.RawMaterialName} ({i.Quantity:0.##} {i.UnitCode})"))
+                    </MudTd>
+                    <MudTd DataLabel="Total Cost" Style="text-align:right;" Class="tabular-nums">@_currency@context.TotalCost.ToString("N2")</MudTd>
+                    <MudTd DataLabel="Status"><StockStatusChip Status="@context.Status.ToString()" /></MudTd>
+                    <MudTd DataLabel="Actions">
+                        @if (context.Status == MaterialReceiptStatus.Draft)
+                        {
+                            <MudStack Row="true" Spacing="1">
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => ConfirmReceiptAsync(context.Id))">
+                                    Confirm
+                                </MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => CancelDraftReceiptAsync(context.Id))">
+                                    Cancel
+                                </MudButton>
+                            </MudStack>
+                        }
+                    </MudTd>
+                </RowTemplate>
+                <NoRecordsContent>
+                    <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="pa-4">No receiving records yet.</MudText>
+                </NoRecordsContent>
+            </MudTable>
+            }
+        </MudStack>
+    </MudTabPanel>
+
+    <MudTabPanel Text="Suppliers">
+        <MudStack Spacing="3">
+            <MudStack Row="true" Justify="Justify.SpaceBetween" AlignItems="AlignItems.Center" Wrap="Wrap.Wrap" Spacing="2">
+                <MudText Typo="Typo.subtitle1">Registered Suppliers</MudText>
+                <AuthorizeView Roles="@AppRoles.Owner">
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="NewSupplier">
+                        Add Supplier
+                    </MudButton>
+                </AuthorizeView>
+            </MudStack>
+
+            @if (_supForm is not null)
+            {
+                <MudPaper Elevation="0" Outlined="true" Class="pa-4" Style="background:#FBF7F3;">
+                    <MudText Typo="Typo.h6" Class="mb-3">@(_supForm.Id.HasValue ? "Edit Supplier" : "New Supplier")</MudText>
+                    <MudGrid Spacing="2">
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_supForm.Name" Label="Supplier Name" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="6">
+                            <MudTextField @bind-Value="_supForm.ContactPerson" Label="Contact Person" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_supForm.Phone" Label="Phone" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudTextField @bind-Value="_supForm.Email" Label="Email" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12" sm="4">
+                            <MudSelect @bind-Value="_supForm.Status" Label="Status" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelectItem Value="SupplierStatus.Active">Active</MudSelectItem>
+                                <MudSelectItem Value="SupplierStatus.Inactive">Inactive</MudSelectItem>
+                            </MudSelect>
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_supForm.Address" Label="Address" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                        <MudItem xs="12">
+                            <MudTextField @bind-Value="_supForm.Notes" Label="Notes" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                        </MudItem>
+                    </MudGrid>
+                    <MudStack Row="true" Spacing="2" Class="mt-3">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_saving" OnClick="SaveSupplierAsync">
+                            <LoadingButtonContent Loading="_saving" Text="Save Supplier" LoadingText="Saving..." />
+                        </MudButton>
+                        <MudButton Variant="Variant.Text" Disabled="_saving" OnClick="@(() => _supForm = null)">Cancel</MudButton>
+                    </MudStack>
+                </MudPaper>
+            }
+
+            <MudTable Items="_suppliers" Dense="true" Hover="true" Elevation="0">
+                <HeaderContent>
+                    <MudTh>Supplier</MudTh>
+                    <MudTh>Contact</MudTh>
+                    <MudTh>Phone / Email</MudTh>
+                    <MudTh>Address</MudTh>
+                    <MudTh>Status</MudTh>
+                    <MudTh>Actions</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Supplier">@context.Name</MudTd>
+                    <MudTd DataLabel="Contact">@context.ContactPerson</MudTd>
+                    <MudTd DataLabel="Phone / Email">@context.Phone @(string.IsNullOrWhiteSpace(context.Email) ? "" : $"| {context.Email}")</MudTd>
+                    <MudTd DataLabel="Address">@context.Address</MudTd>
+                    <MudTd DataLabel="Status">
+                        <MudChip T="string" Size="Size.Small" Color="@(context.Status == SupplierStatus.Active ? Color.Success : Color.Default)">
+                            @context.Status
+                        </MudChip>
+                    </MudTd>
+                    <MudTd DataLabel="Actions">
+                        <AuthorizeView Roles="@AppRoles.Owner" Context="authCtx">
+                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="@(() => EditSupplier(context))">Edit</MudButton>
+                        </AuthorizeView>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+        </MudStack>
+    </MudTabPanel>
+</MudTabs>
+
+@code {
+    private sealed class ReceiptLineForm
+    {
+        public int RawMaterialId { get; set; }
+        public decimal Quantity { get; set; } = 1m;
+        public int UnitId { get; set; }
+        public decimal? UnitCost { get; set; }
+    }
+
+    private sealed class ReceiptForm
+    {
+        public int SupplierId { get; set; }
+        public string Remarks { get; set; } = string.Empty;
+        public List<ReceiptLineForm> Lines { get; } = [];
+    }
+
+    private sealed class SupplierForm
+    {
+        public int? Id { get; set; }
+        public string Name { get; set; } = string.Empty;
+        public string ContactPerson { get; set; } = string.Empty;
+        public string Phone { get; set; } = string.Empty;
+        public string Email { get; set; } = string.Empty;
+        public string Address { get; set; } = string.Empty;
+        public SupplierStatus Status { get; set; } = SupplierStatus.Active;
+        public string Notes { get; set; } = string.Empty;
+    }
+
+    private readonly List<BreadcrumbItem> _breadcrumbs = [new("Dashboard", "/"), new("Suppliers & Receiving", null, true)];
+    private List<SupplierDto> _suppliers = [];
+    private List<MaterialReceiptDto> _receipts = [];
+    private List<RawMaterialDto> _materials = [];
+    private List<UnitOfMeasureDto> _units = [];
+    private string _currency = "₱";
+    private bool _loading = true;
+    private bool _initialLoading = true;
+    private bool _saving;
+
+    private ReceiptForm? _newReceipt;
+    private SupplierForm? _supForm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            _currency = (await SettingService.GetOperationalConfigAsync()).CurrencySymbol;
+            _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
+            _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
+            await LoadAllAsync();
+        }
+        finally
+        {
+            _initialLoading = false;
+        }
+    }
+
+    private async Task LoadAllAsync()
+    {
+        _loading = true;
+        try
+        {
+            _suppliers = (await SupplierService.GetPagedAsync(includeInactive: true, pageSize: 200)).Items.ToList();
+            _receipts = (await ReceiptService.GetPagedAsync(new MaterialReceiptQuery(PageSize: 50))).Items.ToList();
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private void StartNewReceipt()
+    {
+        var sup = _suppliers.FirstOrDefault(s => s.Status == SupplierStatus.Active);
+        if (sup is null || _materials.Count == 0)
+        {
+            Snackbar.Add("Register at least one active supplier and raw material first.", Severity.Warning);
+            return;
+        }
+        _newReceipt = new ReceiptForm { SupplierId = sup.Id };
+        AddReceiptLine();
+    }
+
+    private void AddReceiptLine()
+    {
+        var firstMat = _materials.First();
+        _newReceipt?.Lines.Add(new ReceiptLineForm { RawMaterialId = firstMat.Id, UnitId = firstMat.UnitId, Quantity = 1m });
+    }
+
+    private async Task SaveReceiptDraftAsync()
+    {
+        if (_newReceipt is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await ReceiptService.CreateDraftAsync(new CreateMaterialReceiptRequest(
+                _newReceipt.SupplierId, DateTime.UtcNow, _newReceipt.Remarks,
+                _newReceipt.Lines.Select(l => new MaterialReceiptItemInput(l.RawMaterialId, l.Quantity, l.UnitId, l.UnitCost)).ToList()));
+            Snackbar.Add("Draft receipt created. Confirm receiving to add stock.", Severity.Info);
+            _newReceipt = null;
+            await LoadAllAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+
+    private async Task ConfirmReceiptAsync(long id)
+    {
+        try
+        {
+            await ReceiptService.ConfirmAsync(id);
+            Snackbar.Add("Material receipt confirmed and raw material inventory updated.", Severity.Success);
+            await LoadAllAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private async Task CancelDraftReceiptAsync(long id)
+    {
+        try
+        {
+            await ReceiptService.CancelDraftAsync(id, "Cancelled by staff");
+            await LoadAllAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+    }
+
+    private void NewSupplier() => _supForm = new SupplierForm();
+
+    private void EditSupplier(SupplierDto s) => _supForm = new SupplierForm
+    {
+        Id = s.Id, Name = s.Name, ContactPerson = s.ContactPerson, Phone = s.Phone,
+        Email = s.Email, Address = s.Address, Status = s.Status, Notes = s.Notes
+    };
+
+    private async Task SaveSupplierAsync()
+    {
+        if (_supForm is null || _saving) return;
+        _saving = true;
+        try
+        {
+            await SupplierService.SaveAsync(new SaveSupplierRequest(
+                _supForm.Id, _supForm.Name, _supForm.ContactPerson, _supForm.Phone,
+                _supForm.Email, _supForm.Address, _supForm.Status, _supForm.Notes));
+            Snackbar.Add("Supplier saved.", Severity.Success);
+            _supForm = null;
+            await LoadAllAsync();
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
+        finally { _saving = false; }
+    }
+}

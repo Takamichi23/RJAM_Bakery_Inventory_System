@@ -1,0 +1,28 @@
+<MudPaper Elevation="0" Outlined="true" Class="pa-4 mb-4" Style="border-radius:14px;">
+    <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
+        <div>
+            @if (Breadcrumbs is { Count: > 0 })
+            {
+                <MudBreadcrumbs Items="Breadcrumbs" Class="pa-0 mb-1" Style="font-size:0.78rem;" />
+            }
+            <MudText Typo="Typo.h5" Color="Color.Secondary">@Title</MudText>
+            @if (!string.IsNullOrWhiteSpace(Subtitle))
+            {
+                <MudText Typo="Typo.body2" Color="Color.Tertiary" Class="mt-1">@Subtitle</MudText>
+            }
+        </div>
+        @if (Actions is not null)
+        {
+            <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
+                @Actions
+            </MudStack>
+        }
+    </MudStack>
+</MudPaper>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Subtitle { get; set; }
+    [Parameter] public IReadOnlyList<BreadcrumbItem>? Breadcrumbs { get; set; }
+    [Parameter] public RenderFragment? Actions { get; set; }
+}

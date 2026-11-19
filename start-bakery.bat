@@ -32,6 +32,9 @@ echo      Press Ctrl+C to stop the server cleanly.
 echo ============================================================
 echo.
 
+echo Stopping any previous RJAM Bakery server instance...
+taskkill /F /IM RjamBakery.Web.exe >nul 2>&1
+
 dotnet run --project src\RjamBakery.Web --launch-profile lan
 
 if errorlevel 1 (

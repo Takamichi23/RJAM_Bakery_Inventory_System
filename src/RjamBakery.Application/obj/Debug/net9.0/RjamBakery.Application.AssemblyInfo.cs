@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("RjamBakery.Application")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+08f64f205916f5e89035efaf728d694ca2aed18f")]
 [assembly: System.Reflection.AssemblyProductAttribute("RjamBakery.Application")]
 [assembly: System.Reflection.AssemblyTitleAttribute("RjamBakery.Application")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

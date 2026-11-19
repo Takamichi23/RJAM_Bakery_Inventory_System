@@ -41,7 +41,8 @@ public static class Phase2ApiEndpoints
             }
 
             var trimmedUser = request.UserName.Trim();
-            var user = await userManager.FindByNameAsync(trimmedUser);
+            var user = await userManager.FindByNameAsync(trimmedUser)
+                ?? (trimmedUser.Contains('@') ? await userManager.FindByEmailAsync(trimmedUser) : null);
             if (user is null)
             {
                 logger.LogWarning("Failed API login for unknown username '{UserName}' from {RemoteIp}.",

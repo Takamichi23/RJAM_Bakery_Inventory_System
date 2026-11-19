@@ -147,20 +147,23 @@ public sealed class SecurityHardeningTests(TestWebApplicationFactory factory)
     }
 
     [Fact]
-    public async Task WebLogin_NeutralizesOpenRedirectReturnUrl()
+    public async Task WebLogin_SupportsEmailSignIn_RendersPasswordToggle_AndNeutralizesOpenRedirectReturnUrl()
     {
         using var client = factory.CreateAnonymousClient();
         var loginPage = await client.GetAsync("/Account/Login?ReturnUrl=//evil.example/steal");
         loginPage.StatusCode.Should().Be(HttpStatusCode.OK);
         var html = await loginPage.Content.ReadAsStringAsync();
+        html.Should().Contain("Username or Email");
+        html.Should().Contain("data-toggle-password=\"password\"");
         var token = Regex.Match(html, @"name=""__RequestVerificationToken""[^>]*value=""([^""]+)""").Groups[1].Value;
 
+        // Sign in using the Baker's EMAIL address instead of username
         var post = await client.PostAsync("/Account/Login?ReturnUrl=//evil.example/steal",
             new FormUrlEncodedContent(new Dictionary<string, string>
             {
                 ["__RequestVerificationToken"] = token,
                 ["_handler"] = "LoginForm",
-                ["Input.UserName"] = "test_owner",
+                ["Input.UserName"] = "baker@rjam.test",
                 ["Input.Password"] = TestWebApplicationFactory.DefaultTestPassword,
                 ["Input.RememberMe"] = "false"
             }));
@@ -169,6 +172,15 @@ public sealed class SecurityHardeningTests(TestWebApplicationFactory factory)
         var location = post.Headers.Location?.ToString() ?? string.Empty;
         location.Should().NotContain("evil.example");
         location.Should().EndWith("/");
+
+        // API login also accepts email address
+        using var apiClient = factory.CreateAnonymousClient();
+        var apiLogin = await apiClient.PostAsJsonAsync("/api/auth/login", new
+        {
+            UserName = "owner@rjam.test",
+            Password = TestWebApplicationFactory.DefaultTestPassword
+        });
+        apiLogin.StatusCode.Should().Be(HttpStatusCode.OK);
     }
 
     [Fact]

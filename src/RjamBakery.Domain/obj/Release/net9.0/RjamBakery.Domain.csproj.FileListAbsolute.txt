@@ -10,3 +10,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\refint\RjamBakery.Domain.dll
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.pdb
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\ref\RjamBakery.Domain.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Domain\obj\Release\net9.0\RjamBakery.Domain.sourcelink.json

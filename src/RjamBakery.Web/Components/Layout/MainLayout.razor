@@ -100,7 +100,10 @@
 
     <MudMainContent Style="min-height:100vh; background-color:#F7F1EB;">
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="pa-3 pa-sm-4 pa-md-6">
-            @Body
+            <div id="rjam-postlogin-skeleton" class="rjam-postlogin-host" aria-hidden="true"></div>
+            <div class="rjam-main-body">
+                @Body
+            </div>
         </MudContainer>
     </MudMainContent>
 </MudLayout>

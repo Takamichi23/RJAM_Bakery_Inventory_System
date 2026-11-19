@@ -36,3 +36,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Relea
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Release\net9.0\RjamBakery.Infrastructure.pdb
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Release\net9.0\RjamBakery.Infrastructure.genruntimeconfig.cache
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Release\net9.0\ref\RjamBakery.Infrastructure.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Release\net9.0\RjamBakery.Infrastructure.sourcelink.json

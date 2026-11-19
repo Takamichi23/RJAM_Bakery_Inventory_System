@@ -110,9 +110,12 @@
                     <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="revCtx">
                         @if (context.ApprovalStatus == ApprovalStatus.Pending)
                         {
+                            var isBusy = _reviewingId == context.Id;
                             <MudStack Row="true" Spacing="1">
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => ReviewAsync(context.Id, true))">Approve</MudButton>
-                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => ReviewAsync(context.Id, false))">Reject</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_reviewingId.HasValue)" OnClick="@(() => ReviewAsync(context.Id, true))">
+                                    <LoadingButtonContent Loading="isBusy" Text="Approve" LoadingText="Working..." />
+                                </MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="@(_reviewingId.HasValue)" OnClick="@(() => ReviewAsync(context.Id, false))">Reject</MudButton>
                             </MudStack>
                         }
                     </AuthorizeView>
@@ -132,6 +135,7 @@
     private bool _loading = true;
     private bool _initialLoading = true;
     private bool _saving;
+    private long? _reviewingId;
 
     private StoreInventoryDto? _adjTarget;
     private bool _directMode;
@@ -140,7 +144,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try { await LoadAsync(); }
+        try
+        {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
+            await LoadAsync();
+        }
         finally { _initialLoading = false; }
     }
 
@@ -192,6 +200,8 @@
 
     private async Task ReviewAsync(long id, bool approve)
     {
+        if (_reviewingId.HasValue) return;
+        _reviewingId = id;
         try
         {
             await StoreService.ReviewAdjustmentAsync(id, new ReviewStockAdjustmentRequest(approve, approve ? "Approved" : "Rejected"));
@@ -199,5 +209,6 @@
             await LoadAsync();
         }
         catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _reviewingId = null; }
     }
 }

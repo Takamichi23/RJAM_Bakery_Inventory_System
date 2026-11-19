@@ -142,6 +142,7 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             _currencySymbol = (await SettingService.GetOperationalConfigAsync()).CurrencySymbol;
             await LoadAsync();
         }
@@ -171,9 +172,16 @@
 
     private async Task ShowReceiptAsync(long id)
     {
-        var receipt = await PosService.GetReceiptAsync(id);
-        var parameters = new DialogParameters<PosReceiptDialog> { { x => x.Receipt, receipt } };
-        await DialogService.ShowAsync<PosReceiptDialog>("Receipt", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        try
+        {
+            var receipt = await PosService.GetReceiptAsync(id);
+            var parameters = new DialogParameters<PosReceiptDialog> { { x => x.Receipt, receipt } };
+            await DialogService.ShowAsync<PosReceiptDialog>("Receipt", parameters, new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
+        }
     }
 
     private void OpenReversePanel(PosTransactionDto tx)

@@ -188,6 +188,7 @@ else if (_summary is not null)
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             _summary = await DashboardService.GetSummaryAsync();
         }
         finally

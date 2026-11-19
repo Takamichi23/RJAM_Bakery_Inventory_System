@@ -79,6 +79,14 @@
                 <MudTextField @bind-Value="_notes" Label="Closing Remarks" Variant="Variant.Outlined" Margin="Margin.Dense"
                               Disabled="@(_current.Status == DailyClosingStatus.Finalized)" />
 
+                @if (_editableRows.Count == 0)
+                {
+                    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
+                        No active products are available for daily closing yet. Register products and receive store deliveries first.
+                    </MudAlert>
+                }
+                else
+                {
                 <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
                     @if (_current.Status != DailyClosingStatus.Finalized)
                     {
@@ -90,12 +98,14 @@
                         @if (_current.Id > 0 && _current.Status is DailyClosingStatus.Submitted or DailyClosingStatus.VarianceReviewPending)
                         {
                             <MudCheckBox @bind-Value="_applyVarianceAdjustment" Label="Approve Variance Adjustments to Store Inventory" />
+                            <MudTextField @bind-Value="_approvalNotes" Label="Approval Remarks" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:220px;" />
                             <MudButton Variant="Variant.Filled" Color="Color.Success" Disabled="_finalizing" OnClick="FinalizeAsync">
                                 <LoadingButtonContent Loading="_finalizing" Text="Approve & Finalize Carryover" LoadingText="Finalizing..." />
                             </MudButton>
                         }
                     </AuthorizeView>
                 </MudStack>
+                }
             }
         </MudStack>
     </MudTabPanel>
@@ -145,6 +155,7 @@
     private List<CountRow> _editableRows = [];
     private List<DailyClosingDto> _history = [];
     private string _notes = string.Empty;
+    private string _approvalNotes = string.Empty;
     private bool _applyVarianceAdjustment = true;
     private bool _loading = true;
     private bool _submitting;
@@ -157,6 +168,7 @@
         _loading = true;
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync(loadHistory ? 650 : 350);
             await LoadPreviewAsync();
             if (loadHistory)
             {
@@ -218,9 +230,11 @@
         _finalizing = true;
         try
         {
+            var remarks = string.IsNullOrWhiteSpace(_approvalNotes) ? "Reviewed and finalized" : _approvalNotes.Trim();
             _current = await ClosingService.ApproveAndFinalizeAsync(_current.Id,
-                new FinalizeDailyClosingRequest(_applyVarianceAdjustment, "Reviewed and finalized"));
+                new FinalizeDailyClosingRequest(_applyVarianceAdjustment, remarks));
             Snackbar.Add("Daily closing finalized and carryover stock recorded.", Severity.Success);
+            _approvalNotes = string.Empty;
             await LoadPreviewAsync();
             await LoadHistoryAsync();
         }

@@ -228,6 +228,7 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
             _suppliers = (await SupplierService.GetPagedAsync(pageSize: 200)).Items.ToList();
             await LoadAsync();

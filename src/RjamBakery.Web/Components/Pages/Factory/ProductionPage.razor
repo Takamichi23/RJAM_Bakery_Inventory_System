@@ -7,6 +7,7 @@
 @inject IRecipeService RecipeService
 @inject IProductService ProductService
 @inject IRawMaterialService RawMaterialService
+@inject AuthenticationStateProvider AuthProvider
 @inject ISnackbar Snackbar
 
 <PageTitle>Production &amp; Recipes - RJAM Bakery</PageTitle>
@@ -15,13 +16,20 @@
             Subtitle="Calculate ingredient needs from configured recipes, record daily production, and manage recipe versions."
             Breadcrumbs="_breadcrumbs" />
 
+@if (_initialLoading)
+{
+    <PageLoadingSkeleton Variant="Table" Rows="6" />
+}
+else
+{
 <MudTabs Elevation="0" Outlined="true" Rounded="true" TabPanelsClass="pa-4" Style="background:#FFFFFF; border-radius:14px;">
-    <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Baker}")" Context="prodAuth">
+    @if (_canRecordProduction)
+    {
         <MudTabPanel Text="Record Production">
             <MudStack Spacing="3">
                 <MudGrid Spacing="2">
                     <MudItem xs="12" sm="4">
-                        <MudSelect @bind-Value="_prodProductId" Label="Bakery Product" Variant="Variant.Outlined" Margin="Margin.Dense">
+                        <MudSelect T="int" Value="_prodProductId" ValueChanged="OnProductionProductChanged" Label="Bakery Product" Variant="Variant.Outlined" Margin="Margin.Dense">
                             @foreach (var p in _products)
                             {
                                 <MudSelectItem Value="p.Id">@p.Name (@p.Sku)</MudSelectItem>
@@ -29,7 +37,7 @@
                         </MudSelect>
                     </MudItem>
                     <MudItem xs="6" sm="2">
-                        <MudNumericField @bind-Value="_plannedQty" Label="Planned Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
+                        <MudNumericField T="decimal" Value="_plannedQty" ValueChanged="OnPlannedQtyChanged" Label="Planned Qty" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
                     </MudItem>
                     <MudItem xs="6" sm="2">
                         <MudNumericField @bind-Value="_actualQty" Label="Actual Output" Variant="Variant.Outlined" Margin="Margin.Dense" Min="1m" />
@@ -111,7 +119,7 @@
                 }
             </MudStack>
         </MudTabPanel>
-    </AuthorizeView>
+    }
 
     <MudTabPanel Text="Production History">
         @if (_initialLoading)
@@ -191,7 +199,7 @@
                     {
                         <MudGrid Spacing="2" Class="mb-2">
                             <MudItem xs="12" sm="5">
-                                <MudSelect @bind-Value="ing.RawMaterialId" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelect T="int" Value="ing.RawMaterialId" ValueChanged="@(v => OnRecipeIngredientMaterialChanged(ing, v))" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
                                     @foreach (var m in _materials)
                                     {
                                         <MudSelectItem Value="m.Id">@m.Name (@m.UnitCode)</MudSelectItem>
@@ -258,6 +266,7 @@
         </MudStack>
     </MudTabPanel>
 </MudTabs>
+}
 
 @code {
     private sealed class ConsumptionRow
@@ -303,6 +312,7 @@
     private bool _submitting;
     private bool _loading = true;
     private bool _initialLoading = true;
+    private bool _canRecordProduction;
 
     private ProductionRequirementPreviewDto? _preview;
     private List<ConsumptionRow> _consumptionLines = [];
@@ -315,6 +325,10 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
+            var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
+            _canRecordProduction = user.IsInRole(AppRoles.Owner) || user.IsInRole(AppRoles.Baker);
+
             _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
             _products = (await ProductService.GetPagedAsync(new ProductQuery(PageSize: 200))).Items.ToList();
             _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
@@ -347,13 +361,47 @@
         }
     }
 
+    private void OnProductionProductChanged(int productId)
+    {
+        if (_prodProductId == productId) return;
+        _prodProductId = productId;
+        _preview = null;
+        _consumptionLines.Clear();
+        _confirmNoRecipe = false;
+    }
+
+    private void OnPlannedQtyChanged(decimal planned)
+    {
+        var previousPlanned = _plannedQty;
+        _plannedQty = planned;
+        if (_actualQty <= 0m || _actualQty == previousPlanned)
+        {
+            _actualQty = planned;
+        }
+        _preview = null;
+        _consumptionLines.Clear();
+    }
+
+    private void OnRecipeIngredientMaterialChanged(RecipeIngredientForm ing, int rawMaterialId)
+    {
+        ing.RawMaterialId = rawMaterialId;
+        var mat = _materials.FirstOrDefault(m => m.Id == rawMaterialId);
+        if (mat is not null)
+        {
+            ing.UnitId = mat.UnitId;
+        }
+    }
+
     private async Task PreviewIngredientsAsync()
     {
         if (_prodProductId <= 0 || _checkingRecipe) return;
         _checkingRecipe = true;
         try
         {
-            _actualQty = _plannedQty;
+            if (_actualQty <= 0m)
+            {
+                _actualQty = _plannedQty;
+            }
             _preview = await RecipeService.CalculateRequirementsAsync(_prodProductId, _plannedQty);
             _consumptionLines = _preview.Ingredients.Select(i =>
             {

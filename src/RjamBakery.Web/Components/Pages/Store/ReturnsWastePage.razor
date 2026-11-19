@@ -21,7 +21,7 @@
         <MudText Typo="Typo.h6" Class="mb-3">Record Loss or Customer Return</MudText>
         <MudGrid Spacing="2">
             <MudItem xs="12" sm="3">
-                <MudSelect @bind-Value="_location" Label="Location" Variant="Variant.Outlined" Margin="Margin.Dense">
+                <MudSelect T="InventoryLocation" Value="_location" ValueChanged="OnLocationChanged" Label="Location" Variant="Variant.Outlined" Margin="Margin.Dense">
                     @if (_canStore)
                     {
                         <MudSelectItem Value="InventoryLocation.Store">Store</MudSelectItem>
@@ -59,7 +59,7 @@
             else
             {
                 <MudItem xs="12" sm="4">
-                    <MudSelect @bind-Value="_lotId" Label="Factory Stock Lot (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" T="long?">
+                    <MudSelect Value="_lotId" ValueChanged="OnLotChanged" Label="Factory Stock Lot (optional)" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" T="long?">
                         @foreach (var l in _lots)
                         {
                             <MudSelectItem Value="@((long?)l.Id)">@l.LotNumber — @l.ProductName (@l.AvailableQuantity.ToString("0.##"))</MudSelectItem>
@@ -195,6 +195,7 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             var user = (await AuthProvider.GetAuthenticationStateAsync()).User;
             _canStore = user.IsInRole(AppRoles.Owner) || user.IsInRole(AppRoles.Manager) || user.IsInRole(AppRoles.Cashier);
             _canFactory = user.IsInRole(AppRoles.Owner) || user.IsInRole(AppRoles.Manager) || user.IsInRole(AppRoles.Baker);
@@ -217,12 +218,34 @@
         }
     }
 
+    private void OnLocationChanged(InventoryLocation location)
+    {
+        _location = location;
+        if (_location == InventoryLocation.Factory && _category == WasteReturnCategory.CustomerReturn)
+        {
+            _category = WasteReturnCategory.Damaged;
+        }
+    }
+
+    private void OnLotChanged(long? lotId)
+    {
+        _lotId = lotId;
+        if (_lotId.HasValue)
+        {
+            _rawMaterialId = null;
+        }
+    }
+
     private async Task LoadAsync()
     {
         _loading = true;
         try
         {
             _records = (await WasteService.GetPagedAsync(new WasteAndReturnQuery(PageSize: 100))).Items.ToList();
+            if (_canFactory)
+            {
+                _lots = (await FactoryService.GetLotsPagedAsync(new FactoryLotQuery(OnlyAvailable: true, PageSize: 100))).Items.ToList();
+            }
         }
         finally { _loading = false; }
     }

@@ -3,6 +3,7 @@
 @using RjamBakery.Application.Contracts
 @using RjamBakery.Application.Services
 @inject IReportingService ReportingService
+@inject ISnackbar Snackbar
 
 <PageTitle>Reports &amp; Analytics - RJAM Bakery</PageTitle>
 
@@ -81,8 +82,8 @@
                 {
                     <MudStack Spacing="3">
                         <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
-                            <MudButton Href="@($"/api/reports/sales/export?format=xlsx&fromUtc={FromUtc:O}&toUtc={ToUtc:O}")" Target="_blank" Variant="Variant.Outlined">Export Excel</MudButton>
-                            <MudButton Href="@($"/api/reports/sales/export?format=pdf&fromUtc={FromUtc:O}&toUtc={ToUtc:O}")" Target="_blank" Variant="Variant.Outlined">Export PDF</MudButton>
+                            <MudButton Href="@($"/api/reports/sales/export?format=xlsx&fromUtc={Uri.EscapeDataString(FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(ToUtc.ToString("O"))}")" Target="_blank" Variant="Variant.Outlined">Export Excel</MudButton>
+                            <MudButton Href="@($"/api/reports/sales/export?format=pdf&fromUtc={Uri.EscapeDataString(FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(ToUtc.ToString("O"))}")" Target="_blank" Variant="Variant.Outlined">Export PDF</MudButton>
                         </MudStack>
                         <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true">
                             Net Sales Revenue: @_sales.CurrencySymbol@_sales.NetSalesRevenue.ToString("N2") (@_sales.CompletedCount completed, @_sales.VoidedCount voided, @_sales.RefundedCount refunded). Revenue excludes COGS and operating expenses.
@@ -105,8 +106,8 @@
                 {
                     <MudStack Spacing="3">
                         <MudStack Row="true" Spacing="2" Wrap="Wrap.Wrap">
-                            <MudButton Href="@($"/api/reports/deliveries/export?format=xlsx&fromUtc={FromUtc:O}&toUtc={ToUtc:O}")" Target="_blank" Variant="Variant.Outlined">Export Excel</MudButton>
-                            <MudButton Href="@($"/api/reports/deliveries/export?format=pdf&fromUtc={FromUtc:O}&toUtc={ToUtc:O}")" Target="_blank" Variant="Variant.Outlined">Export PDF</MudButton>
+                            <MudButton Href="@($"/api/reports/deliveries/export?format=xlsx&fromUtc={Uri.EscapeDataString(FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(ToUtc.ToString("O"))}")" Target="_blank" Variant="Variant.Outlined">Export Excel</MudButton>
+                            <MudButton Href="@($"/api/reports/deliveries/export?format=pdf&fromUtc={Uri.EscapeDataString(FromUtc.ToString("O"))}&toUtc={Uri.EscapeDataString(ToUtc.ToString("O"))}")" Target="_blank" Variant="Variant.Outlined">Export PDF</MudButton>
                         </MudStack>
                         <MudText Typo="Typo.subtitle1">Pending: @_del.PendingCount | Dispatched: @_del.DispatchedCount | Discrepancy Review: @_del.PartiallyReceivedCount | Received: @_del.ReceivedCount</MudText>
                         <MudTable Items="_del.Deliveries" Dense="true" Elevation="0">
@@ -161,21 +162,32 @@
 
     private DateOnly FromOnly => DateOnly.FromDateTime(_fromDate ?? DateTime.Today.AddDays(-7));
     private DateOnly ToOnly => DateOnly.FromDateTime(_toDate ?? DateTime.Today);
-    private DateTime FromUtc => FromOnly.ToDateTime(TimeOnly.MinValue, DateTimeKind.Utc);
-    private DateTime ToUtc => ToOnly.ToDateTime(TimeOnly.MaxValue, DateTimeKind.Utc);
+    private DateTime FromUtc => DateTime.SpecifyKind(FromOnly.ToDateTime(TimeOnly.MinValue), DateTimeKind.Local).ToUniversalTime();
+    private DateTime ToUtc => DateTime.SpecifyKind(ToOnly.ToDateTime(TimeOnly.MaxValue), DateTimeKind.Local).ToUniversalTime();
 
     protected override async Task OnInitializedAsync() => await LoadReportsAsync();
 
     private async Task LoadReportsAsync()
     {
+        if (FromOnly > ToOnly)
+        {
+            Snackbar.Add("From Date cannot be later than To Date.", Severity.Warning);
+            return;
+        }
+
         _loading = true;
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync(550);
             _inv = await ReportingService.GetInventoryReportAsync();
             _prod = await ReportingService.GetProductionReportAsync(FromOnly, ToOnly);
             _sales = await ReportingService.GetSalesReportAsync(FromUtc, ToUtc);
             _del = await ReportingService.GetDeliveryReportAsync(FromUtc, ToUtc);
             _closing = await ReportingService.GetClosingReportAsync(FromOnly, ToOnly);
+        }
+        catch (DomainException ex)
+        {
+            Snackbar.Add(ex.Message, Severity.Error);
         }
         finally { _loading = false; }
     }

@@ -161,28 +161,31 @@
                 </MudTd>
                 <MudTd DataLabel="Status"><StockStatusChip Status="@context.Status.ToString()" /></MudTd>
                 <MudTd DataLabel="Actions">
+                    @{ var isBusy = _busyDeliveryId == context.Id; }
                     <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap">
                         <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Baker}")" Context="dispAuth">
                             @if (context.Status == DeliveryStatus.Draft)
                             {
-                                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="@(() => PrepareAsync(context.Id))">Prepare (FEFO)</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(_busyDeliveryId.HasValue)" OnClick="@(() => PrepareAsync(context.Id))">Prepare (FEFO)</MudButton>
                             }
                             @if (context.Status is DeliveryStatus.Draft or DeliveryStatus.PendingDispatch)
                             {
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="@(() => DispatchAsync(context.Id))">Dispatch</MudButton>
-                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => CancelAsync(context.Id))">Cancel</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busyDeliveryId.HasValue)" OnClick="@(() => DispatchAsync(context.Id))">
+                                    <LoadingButtonContent Loading="isBusy" Text="Dispatch" LoadingText="Working..." />
+                                </MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="@(_busyDeliveryId.HasValue)" OnClick="@(() => CancelAsync(context.Id))">Cancel</MudButton>
                             }
                         </AuthorizeView>
                         <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager},{AppRoles.Cashier}")" Context="rcvAuth">
                             @if (context.Status == DeliveryStatus.Dispatched)
                             {
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => StartReceive(context))">Receive</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_busyDeliveryId.HasValue)" OnClick="@(() => StartReceive(context))">Receive</MudButton>
                             }
                         </AuthorizeView>
                         <AuthorizeView Roles="@($"{AppRoles.Owner},{AppRoles.Manager}")" Context="recAuth">
                             @if (context.Status == DeliveryStatus.PartiallyReceived)
                             {
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" OnClick="@(() => StartReconcile(context))">Reconcile</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Warning" Disabled="@(_busyDeliveryId.HasValue)" OnClick="@(() => StartReconcile(context))">Reconcile</MudButton>
                             }
                         </AuthorizeView>
                     </MudStack>
@@ -225,6 +228,7 @@
     private bool _loading = true;
     private bool _initialLoading = true;
     private bool _saving;
+    private long? _busyDeliveryId;
 
     private DraftForm? _draftForm;
     private DeliveryDto? _receivingTarget;
@@ -234,7 +238,11 @@
 
     protected override async Task OnInitializedAsync()
     {
-        try { await LoadAsync(); }
+        try
+        {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
+            await LoadAsync();
+        }
         finally { _initialLoading = false; }
     }
 
@@ -253,6 +261,8 @@
 
     private async Task StartNewDelivery()
     {
+        _receivingTarget = null;
+        _reconcileTarget = null;
         _factoryStock = (await FactoryInventoryService.GetProductSummaryAsync())
             .Where(f => f.TotalAvailableQuantity > 0).ToList();
         if (_factoryStock.Count == 0)
@@ -292,6 +302,8 @@
 
     private async Task PrepareAsync(long id)
     {
+        if (_busyDeliveryId.HasValue) return;
+        _busyDeliveryId = id;
         try
         {
             await DeliveryService.PrepareForDispatchAsync(id);
@@ -299,10 +311,13 @@
             await LoadAsync();
         }
         catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busyDeliveryId = null; }
     }
 
     private async Task DispatchAsync(long id)
     {
+        if (_busyDeliveryId.HasValue) return;
+        _busyDeliveryId = id;
         try
         {
             await DeliveryService.DispatchAsync(id);
@@ -310,20 +325,27 @@
             await LoadAsync();
         }
         catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busyDeliveryId = null; }
     }
 
     private async Task CancelAsync(long id)
     {
+        if (_busyDeliveryId.HasValue) return;
+        _busyDeliveryId = id;
         try
         {
             await DeliveryService.CancelAsync(id, "Cancelled before dispatch");
+            Snackbar.Add("Delivery cancelled and any reserved lots released.", Severity.Info);
             await LoadAsync();
         }
         catch (DomainException ex) { Snackbar.Add(ex.Message, Severity.Error); }
+        finally { _busyDeliveryId = null; }
     }
 
     private void StartReceive(DeliveryDto d)
     {
+        _draftForm = null;
+        _reconcileTarget = null;
         _receivingTarget = d;
         _receiveInputs = d.Items.Select(i => new ReceiveLineModel
         {
@@ -354,6 +376,8 @@
 
     private void StartReconcile(DeliveryDto d)
     {
+        _draftForm = null;
+        _receivingTarget = null;
         _reconcileTarget = d;
         _reconcileInputs = d.Items
             .Where(i => i.ReconciliationStatus == ReconciliationStatus.PendingReview)

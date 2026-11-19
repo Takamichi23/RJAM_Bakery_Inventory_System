@@ -18,6 +18,26 @@
     let reconnectObserver = null;
     let overlayHost = null;
     let activeController = null;
+    let manualOfflineMode = false;
+
+    try {
+        manualOfflineMode = sessionStorage.getItem('rjam_pos_manual_offline') === '1';
+    } catch { }
+
+    function setManualOfflineFlag(enabled) {
+        manualOfflineMode = Boolean(enabled);
+        try {
+            if (manualOfflineMode) {
+                sessionStorage.setItem('rjam_pos_manual_offline', '1');
+            } else {
+                sessionStorage.removeItem('rjam_pos_manual_offline');
+            }
+        } catch { }
+    }
+
+    function isEffectivelyOnline() {
+        return navigator.onLine !== false && !manualOfflineMode;
+    }
 
     function roundMoney(v) {
         const n = Number(v);
@@ -177,7 +197,8 @@
         const conflictCount = queue.filter((q) => q.status === 'Conflict').length;
         const syncedCount = queue.filter((q) => q.status === 'Synced').length;
         return {
-            isOnline: navigator.onLine !== false,
+            isOnline: isEffectivelyOnline(),
+            manualOffline: manualOfflineMode,
             pendingCount,
             conflictCount,
             syncedCount,
@@ -443,6 +464,9 @@
             tendered: 0,
             activeTab: initialTab,
             receipt: null,
+            confirmOnlineModal: false,
+            confirmSyncModal: false,
+            syncBusy: false,
             bannerMessage: ''
         };
 
@@ -463,7 +487,7 @@
         }
 
         function render() {
-            const online = navigator.onLine !== false;
+            const online = isEffectivelyOnline();
             const cur = state.catalog.currencySymbol || '₱';
             const pendingCount = state.queue.filter((q) => q.status === 'Pending').length;
             const conflictCount = state.queue.filter((q) => q.status === 'Conflict').length;
@@ -486,7 +510,11 @@
                         <div class="rjam-offpos-brand">
                             <img src="/images/rjam-logo-light.png" alt="RJAM Bakery" style="height:34px; width:auto;" />
                             <span class="rjam-offpos-pill ${online ? 'is-online' : 'is-offline'}">
-                                ${online ? 'Online · Auto-Sync Active' : 'Offline Mode · Queuing Locally'}
+                                ${manualOfflineMode
+                                    ? 'Offline Mode: ON · Queuing Locally'
+                                    : online
+                                        ? 'Online · Auto-Sync Active'
+                                        : 'Network Disconnected · Queuing Locally'}
                             </span>
                         </div>
                         <div class="rjam-offpos-actions">
@@ -494,14 +522,18 @@
                                 POS Terminal
                             </button>
                             <button type="button" class="rjam-off-btn ${state.activeTab === 'queue' ? 'is-active' : ''}" data-action="tab-queue">
-                                Sync Queue (${pendingCount + conflictCount})
+                                Offline Queue (${pendingCount + conflictCount})
                             </button>
-                            <button type="button" class="rjam-off-btn is-primary" data-action="sync-now" ${isSyncing ? 'disabled' : ''}>
-                                ${isSyncing ? 'Syncing...' : `Sync Now${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
+                            <button type="button" class="rjam-off-btn is-primary" data-action="sync-now" ${(isSyncing || state.syncBusy) ? 'disabled' : ''}>
+                                ${(isSyncing || state.syncBusy)
+                                    ? `<span class="rjam-off-spinner"></span>Syncing...`
+                                    : `Sync Now${pendingCount > 0 ? ` (${pendingCount})` : ''}`}
                             </button>
                             ${standalone
-                                ? `<a href="/pos" class="rjam-off-btn">Live POS</a>`
-                                : `<button type="button" class="rjam-off-btn" data-action="close-overlay">Return to Live POS</button>`}
+                                ? `<a href="/pos" class="rjam-off-btn">Switch to Online POS</a>`
+                                : `<button type="button" class="rjam-off-btn" data-action="prompt-online-mode" style="background:#3E7B5A; border-color:#3E7B5A; color:#FFFFFF;">
+                                    Switch to Online Mode
+                                   </button>`}
                         </div>
                     </header>
 
@@ -650,10 +682,76 @@
                     </main>
 
                     ${state.receipt ? renderReceiptModal(cur, state.receipt) : ''}
+                    ${state.confirmOnlineModal ? renderConfirmOnlineModal(pendingCount) : ''}
+                    ${state.confirmSyncModal ? renderConfirmSyncModal(pendingCount) : ''}
+                    ${state.syncBusy ? renderSyncingLoadingModal(pendingCount) : ''}
                 </div>
             `;
 
             bindEvents();
+        }
+
+        function renderConfirmSyncModal(pendingCount) {
+            return `
+                <div class="rjam-off-modal-backdrop">
+                    <div class="rjam-off-modal">
+                        <h3 class="rjam-off-h3" style="margin-bottom:8px;">Sync Offline Sales to Server?</h3>
+                        <p class="rjam-off-muted" style="font-size:0.88rem; line-height:1.5; margin:0 0 16px 0;">
+                            ${pendingCount > 0
+                                ? `You have <strong>${pendingCount}</strong> pending offline sale${pendingCount === 1 ? '' : 's'} saved on this device. Do you want to transfer ${pendingCount === 1 ? 'it' : 'them'} to the server database now?`
+                                : 'Check and sync any pending offline sales with the server database now?'}
+                        </p>
+                        <div class="rjam-off-row-between" style="justify-content:flex-end; gap:10px;">
+                            <button type="button" class="rjam-off-btn is-outline" data-action="cancel-sync-modal">Cancel</button>
+                            <button type="button" class="rjam-off-btn is-primary" data-action="confirm-sync-modal">
+                                ${pendingCount > 0 ? `Confirm & Sync (${pendingCount})` : 'Confirm & Sync'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderSyncingLoadingModal(pendingCount) {
+            return `
+                <div class="rjam-off-modal-backdrop">
+                    <div class="rjam-off-modal" style="text-align:center; padding:28px 24px;">
+                        <img src="/images/rjam-logo.png" alt="RJAM Bakery" style="height:48px; width:auto; margin:0 auto 14px auto; display:block;" />
+                        <div class="rjam-splash-bar" style="margin:0 auto 14px auto;">
+                            <div class="rjam-splash-bar-fill"></div>
+                        </div>
+                        <div style="font-weight:700; color:#2E1C16; font-size:0.98rem;">
+                            Syncing Offline Sales to Server...
+                        </div>
+                        <div class="rjam-off-muted" style="font-size:0.82rem; margin-top:4px;">
+                            ${pendingCount > 0
+                                ? `Transferring ${pendingCount} queued sale${pendingCount === 1 ? '' : 's'} and updating store inventory.`
+                                : 'Verifying offline queue and refreshing store stock.'}
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+
+        function renderConfirmOnlineModal(pendingCount) {
+            return `
+                <div class="rjam-off-modal-backdrop">
+                    <div class="rjam-off-modal">
+                        <h3 class="rjam-off-h3" style="margin-bottom:8px;">Switch Back to Online POS Mode?</h3>
+                        <p class="rjam-off-muted" style="font-size:0.88rem; line-height:1.5; margin:0 0 16px 0;">
+                            ${pendingCount > 0
+                                ? `You have <strong>${pendingCount}</strong> offline sale${pendingCount === 1 ? '' : 's'} queued on this device. Switching to Online Mode will automatically transfer ${pendingCount === 1 ? 'it' : 'them'} to the server database now and return to Live POS.`
+                                : 'Turn off Offline Mode and return to Live POS connected to the server?'}
+                        </p>
+                        <div class="rjam-off-row-between" style="justify-content:flex-end; gap:10px;">
+                            <button type="button" class="rjam-off-btn is-outline" data-action="cancel-online-mode">Stay in Offline Mode</button>
+                            <button type="button" class="rjam-off-btn is-primary" data-action="confirm-online-mode" style="background:#3E7B5A; border-color:#3E7B5A;">
+                                ${pendingCount > 0 ? `Switch to Online & Sync (${pendingCount})` : 'Switch to Online Mode'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
         }
 
         function renderQueueView(cur) {
@@ -874,15 +972,59 @@
                 render();
             });
 
-            container.querySelector('[data-action="sync-now"]')?.addEventListener('click', async () => {
+            container.querySelector('[data-action="sync-now"]')?.addEventListener('click', () => {
+                state.confirmSyncModal = true;
                 render();
-                const res = await syncNow();
+            });
+
+            container.querySelector('[data-action="cancel-sync-modal"]')?.addEventListener('click', () => {
+                state.confirmSyncModal = false;
+                render();
+            });
+
+            container.querySelector('[data-action="confirm-sync-modal"]')?.addEventListener('click', async () => {
+                state.confirmSyncModal = false;
+                state.syncBusy = true;
+                render();
+                const [res] = await Promise.all([
+                    syncNow(),
+                    new Promise((resolve) => setTimeout(resolve, 650))
+                ]);
+                state.syncBusy = false;
                 state.bannerMessage = res.lastMessage || (res.pendingCount === 0 ? 'All sales are up to date.' : '');
                 await loadLocal();
                 render();
             });
 
+            container.querySelector('[data-action="prompt-online-mode"]')?.addEventListener('click', () => {
+                state.confirmOnlineModal = true;
+                render();
+            });
+
+            container.querySelector('[data-action="cancel-online-mode"]')?.addEventListener('click', () => {
+                state.confirmOnlineModal = false;
+                render();
+            });
+
+            container.querySelector('[data-action="confirm-online-mode"]')?.addEventListener('click', async () => {
+                state.confirmOnlineModal = false;
+                state.syncBusy = true;
+                render();
+                setManualOfflineFlag(false);
+                if (navigator.onLine !== false) {
+                    await Promise.all([
+                        syncNow(),
+                        new Promise((resolve) => setTimeout(resolve, 650))
+                    ]);
+                } else {
+                    await notifyListeners(0, '');
+                }
+                state.syncBusy = false;
+                if (onClose) onClose();
+            });
+
             container.querySelector('[data-action="close-overlay"]')?.addEventListener('click', () => {
+                setManualOfflineFlag(false);
                 if (onClose) onClose();
             });
 
@@ -900,14 +1042,14 @@
                 state.tendered = 0;
                 state.receipt = saved;
 
-                if (navigator.onLine !== false) {
+                if (isEffectivelyOnline()) {
                     const syncRes = await syncNow();
                     const refreshedQueue = await dbGetAllQueue();
                     const updated = refreshedQueue.find((x) => x.clientIdempotencyKey === saved.clientIdempotencyKey);
                     if (updated) state.receipt = updated;
                     state.bannerMessage = syncRes.lastMessage || 'Sale saved locally.';
                 } else {
-                    state.bannerMessage = `Sale ${saved.offlineReceiptNo} queued offline. It will sync automatically when Wi-Fi returns.`;
+                    state.bannerMessage = `Sale ${saved.offlineReceiptNo} saved in Offline Queue. Switch to Online Mode or click Sync Now when ready to transfer to server.`;
                 }
 
                 await loadLocal();
@@ -928,7 +1070,14 @@
 
             container.querySelectorAll('[data-retry]').forEach((btn) => {
                 btn.addEventListener('click', async () => {
-                    const res = await retryConflict(btn.getAttribute('data-retry'));
+                    const key = btn.getAttribute('data-retry');
+                    state.syncBusy = true;
+                    render();
+                    const [res] = await Promise.all([
+                        retryConflict(key),
+                        new Promise((resolve) => setTimeout(resolve, 650))
+                    ]);
+                    state.syncBusy = false;
                     state.bannerMessage = res?.lastMessage || '';
                     await loadLocal();
                     render();
@@ -1009,7 +1158,7 @@
     function watchPosConnectivity() {
         if (!syncTimer) {
             syncTimer = setInterval(async () => {
-                if (navigator.onLine === false) return;
+                if (!isEffectivelyOnline()) return;
                 const queue = await dbGetAllQueue();
                 if (queue.some((q) => q.status === 'Pending')) {
                     await syncNow();
@@ -1041,6 +1190,10 @@
     });
 
     window.addEventListener('online', async () => {
+        if (manualOfflineMode) {
+            await notifyListeners(0, 'Network available, but Manual Offline Mode is active.');
+            return;
+        }
         await notifyListeners(0, 'Connection restored. Checking pending offline sales...');
         await syncNow();
     });
@@ -1085,13 +1238,27 @@
             dotNetRef = ref;
             watchPosConnectivity();
             const state = await getSummaryState();
-            if (state.pendingCount > 0 && navigator.onLine !== false) {
+            if (manualOfflineMode) {
+                setTimeout(() => { openOfflineOverlay('pos'); }, 150);
+            } else if (state.pendingCount > 0 && navigator.onLine !== false) {
                 setTimeout(() => { syncNow(); }, 250);
             }
             return state;
         },
         detachPosPage() {
             dotNetRef = null;
+        },
+        async setManualOfflineMode(enabled, initialTab = 'pos') {
+            setManualOfflineFlag(enabled);
+            if (manualOfflineMode) {
+                await openOfflineOverlay(initialTab);
+                return await notifyListeners(0, 'Offline POS Mode enabled. Sales will queue locally on this device.');
+            }
+            closeOfflineOverlay();
+            if (navigator.onLine !== false) {
+                return await syncNow();
+            }
+            return await notifyListeners(0, 'Returned to Online POS Mode.');
         },
         saveCatalogSnapshot,
         getSummaryState,

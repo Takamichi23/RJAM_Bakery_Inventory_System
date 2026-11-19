@@ -36,3 +36,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\bin\Debug
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\bin\Debug\net9.0\LatoFont\Lato-Thin.ttf
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\bin\Debug\net9.0\LatoFont\Lato-ThinItalic.ttf
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\bin\Debug\net9.0\LatoFont\OFL.txt
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Infrastructure\obj\Debug\net9.0\RjamBakery.Infrastructure.sourcelink.json

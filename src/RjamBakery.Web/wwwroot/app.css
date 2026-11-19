@@ -159,6 +159,54 @@ body {
     border-color: var(--rjam-caramel);
 }
 
+.auth-password-wrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.auth-password-wrap .auth-input {
+    padding-right: 42px;
+}
+
+.auth-password-toggle {
+    position: absolute;
+    right: 6px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 32px;
+    height: 32px;
+    border: none;
+    border-radius: 6px;
+    background: transparent;
+    color: var(--rjam-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    padding: 0;
+    transition: color 0.15s ease, background-color 0.15s ease;
+}
+
+.auth-password-toggle:hover,
+.auth-password-toggle:focus-visible {
+    color: var(--rjam-espresso);
+    background-color: rgba(200, 138, 85, 0.12);
+    outline: none;
+}
+
+.auth-password-toggle .eye-hide {
+    display: none;
+}
+
+.auth-password-toggle.is-visible .eye-show {
+    display: none;
+}
+
+.auth-password-toggle.is-visible .eye-hide {
+    display: block;
+}
+
 .auth-btn {
     width: 100%;
     padding: 11px 16px;
@@ -259,7 +307,7 @@ img {
 }
 
 .rjam-prelogin-splash {
-    animation: rjamSplashOut 0.85s ease forwards;
+    animation: rjamSplashOut 1.45s ease forwards;
 }
 
 .auth-shell:has(.auth-alert-error) ~ .rjam-prelogin-splash,
@@ -278,7 +326,7 @@ img {
 }
 
 @keyframes rjamSplashOut {
-    0%, 65% {
+    0%, 72% {
         opacity: 1;
         visibility: visible;
     }
@@ -287,6 +335,50 @@ img {
         visibility: hidden;
         pointer-events: none;
     }
+}
+
+.rjam-skeleton-group .mud-skeleton {
+    background: linear-gradient(
+        90deg,
+        rgba(216, 201, 188, 0.42) 20%,
+        rgba(200, 138, 85, 0.30) 50%,
+        rgba(216, 201, 188, 0.42) 80%
+    ) !important;
+    background-size: 220% 100% !important;
+    animation: rjamSkeletonShimmer 1.15s ease-in-out infinite !important;
+}
+
+@keyframes rjamSkeletonShimmer {
+    0% {
+        background-position: 200% 0;
+    }
+    100% {
+        background-position: -200% 0;
+    }
+}
+
+.rjam-postlogin-host {
+    display: none;
+}
+
+.rjam-postlogin-host.is-active {
+    display: block;
+}
+
+.rjam-postlogin-host.is-active + .rjam-main-body {
+    display: none;
+}
+
+.rjam-skel-box {
+    border-radius: 10px;
+    background: linear-gradient(
+        90deg,
+        rgba(216, 201, 188, 0.45) 20%,
+        rgba(200, 138, 85, 0.32) 50%,
+        rgba(216, 201, 188, 0.45) 80%
+    );
+    background-size: 220% 100%;
+    animation: rjamSkeletonShimmer 1.15s ease-in-out infinite;
 }
 
 .rjam-splash-card {
@@ -793,6 +885,24 @@ img {
     padding: 18px;
     max-height: 92vh;
     overflow-y: auto;
+}
+
+.rjam-off-spinner {
+    display: inline-block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: rjamSpin 0.7s linear infinite;
+    vertical-align: -2px;
+    margin-right: 6px;
+}
+
+@keyframes rjamSpin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 @media print {

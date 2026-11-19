@@ -129,3 +129,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.UnitTests\obj\Release\
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.UnitTests\obj\Release\net9.0\RjamBakery.UnitTests.pdb
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.UnitTests\obj\Release\net9.0\RjamBakery.UnitTests.genruntimeconfig.cache
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.UnitTests\obj\Release\net9.0\ref\RjamBakery.UnitTests.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.UnitTests\obj\Release\net9.0\RjamBakery.UnitTests.sourcelink.json

@@ -212,10 +212,11 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\r
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\RjamBakery.Web.pdb
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\RjamBakery.Web.genruntimeconfig.cache
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\ref\RjamBakery.Web.dll
-C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\jim1ifko2m-{0}-mi61rfae62-mi61rfae62.gz
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\og09o935dd-{0}-9ibudxbeq5-9ibudxbeq5.gz
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\fcf3r80ii1-{0}-bc7k8nmq3q-bc7k8nmq3q.gz
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\bin\Release\net9.0\appsettings.Production.example.json
-C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\uqbr7biqz7-{0}-wp72tqijfq-wp72tqijfq.gz
-C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\uzbmv3f9ix-{0}-1cxsrd8f3w-1cxsrd8f3w.gz
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\pvt2ix0rtz-{0}-uyoykroc3g-uyoykroc3g.gz
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\RjamBakery.Web.sourcelink.json
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\uqbr7biqz7-{0}-1uweehww4j-1uweehww4j.gz
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\jim1ifko2m-{0}-vuoasayiss-vuoasayiss.gz
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Web\obj\Release\net9.0\compressed\uzbmv3f9ix-{0}-7yrnzlg34x-7yrnzlg34x.gz

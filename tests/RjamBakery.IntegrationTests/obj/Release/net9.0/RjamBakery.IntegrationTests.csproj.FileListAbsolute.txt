@@ -550,3 +550,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.IntegrationTests\obj\R
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.IntegrationTests\obj\Release\net9.0\RjamBakery.IntegrationTests.genruntimeconfig.cache
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.IntegrationTests\obj\Release\net9.0\ref\RjamBakery.IntegrationTests.dll
 C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.IntegrationTests\bin\Release\net9.0\appsettings.Production.example.json
+C:\Users\Roejon\source\repos\RJAM_LATEST\tests\RjamBakery.IntegrationTests\obj\Release\net9.0\RjamBakery.IntegrationTests.sourcelink.json

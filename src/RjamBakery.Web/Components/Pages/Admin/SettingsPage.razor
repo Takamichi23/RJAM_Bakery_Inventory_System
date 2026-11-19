@@ -60,7 +60,11 @@ else
 
     protected override async Task OnInitializedAsync()
     {
-        try { await LoadAsync(); }
+        try
+        {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
+            await LoadAsync();
+        }
         finally { _initialLoading = false; }
     }
 

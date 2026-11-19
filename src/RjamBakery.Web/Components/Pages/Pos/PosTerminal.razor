@@ -19,17 +19,23 @@
     <MudItem xs="12" md="7" lg="8">
         <MudPaper Elevation="0" Outlined="true" Class="pa-3 pa-sm-4 mb-4" Style="border-radius:14px;">
             <MudStack Spacing="3">
-                <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
-                    <MudStack Row="true" AlignItems="AlignItems.Center" Spacing="2" Wrap="Wrap.Wrap">
-                        <MudText Typo="Typo.h5" Color="Color.Secondary">Point of Sale</MudText>
+                <div class="d-flex align-center justify-space-between flex-wrap gap-2">
+                    <div class="d-flex align-center flex-wrap gap-2">
+                        <MudText Typo="Typo.h5" Color="Color.Secondary" Class="ma-0">Point of Sale</MudText>
                         <MudChip T="string"
                                  Size="Size.Small"
                                  Variant="Variant.Outlined"
-                                 Color="@(_offlineState.IsOnline ? Color.Success : Color.Warning)">
-                            @(_offlineState.IsOnline ? "Online · Offline Ready" : "Offline")
+                                 Class="ma-0"
+                                 Color="@(_offlineState.IsOnline && !_offlineState.ManualOffline ? Color.Success : Color.Warning)">
+                            @(_offlineState.ManualOffline
+                                ? "Offline Mode Active"
+                                : _offlineState.IsOnline
+                                    ? "Online · Offline Ready"
+                                    : "Offline · Network Disconnected")
                         </MudChip>
-                    </MudStack>
-                    <MudStack Row="true" Spacing="1" Wrap="Wrap.Wrap" AlignItems="AlignItems.Center">
+                    </div>
+
+                    <div class="d-flex align-center flex-wrap gap-2">
                         @if (_offlineState.PendingCount > 0 || _offlineState.ConflictCount > 0)
                         {
                             <MudButton Variant="Variant.Filled"
@@ -43,24 +49,28 @@
                                                       LoadingText="Syncing..." />
                             </MudButton>
                         }
-                        <MudButton Variant="Variant.Outlined"
-                                   Color="Color.Secondary"
-                                   Size="Size.Small"
-                                   OnClick="@(() => OpenOfflineOverlayAsync("queue"))"
-                                   StartIcon="@Icons.Material.Filled.CloudDone">
-                            Offline Queue
-                        </MudButton>
+                        <div class="d-inline-flex align-center"
+                             style="border:1px solid #D8C9BC; background:#FBF7F3; border-radius:8px; padding:2px 12px 2px 6px; min-height:32px;">
+                            <MudSwitch @key="_switchRenderKey"
+                                       T="bool"
+                                       Value="@_offlineState.ManualOffline"
+                                       ValueChanged="ConfirmToggleOfflineModeAsync"
+                                       Color="Color.Warning"
+                                       Size="Size.Small"
+                                       Class="ma-0"
+                                       Label="Offline Mode" />
+                        </div>
                         @if (_cart.Count > 0)
                         {
                             <MudButton Href="#pos-current-order" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small" Class="d-md-none" StartIcon="@Icons.Material.Filled.ShoppingBag">
                                 Order (@_cart.Count · @_currencySymbol@TotalAmount.ToString("N2"))
                             </MudButton>
                         }
-                        <MudButton Href="/sales-history" Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.History">
+                        <MudButton Href="/sales-history" Variant="Variant.Outlined" Color="Color.Secondary" Size="Size.Small" StartIcon="@Icons.Material.Filled.History">
                             Sales History
                         </MudButton>
-                    </MudStack>
-                </MudStack>
+                    </div>
+                </div>
 
                 <MudTextField @bind-Value="_searchTerm"
                               Placeholder="Search product name or SKU..."
@@ -314,6 +324,7 @@
     public sealed class OfflinePosState
     {
         public bool IsOnline { get; set; } = true;
+        public bool ManualOffline { get; set; }
         public int PendingCount { get; set; }
         public int ConflictCount { get; set; }
         public int SyncedCount { get; set; }
@@ -336,6 +347,7 @@
     private bool _syncingOffline;
     private bool _jsAttached;
     private bool _disposed;
+    private int _switchRenderKey;
     private OfflinePosState _offlineState = new();
     private DotNetObjectReference<PosTerminal>? _dotNetRef;
 
@@ -351,6 +363,7 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             var config = await SettingService.GetOperationalConfigAsync();
             _bakeryName = config.BakeryName;
             _currencySymbol = config.CurrencySymbol;
@@ -448,9 +461,26 @@
     private async Task SyncOfflineQueueAsync()
     {
         if (_syncingOffline) return;
+
+        var totalQueued = _offlineState.PendingCount + _offlineState.ConflictCount;
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            title: "Sync Offline Sales to Server?",
+            message: totalQueued > 0
+                ? $"You have {totalQueued} queued offline sale(s) on this device. Do you want to transfer them to the server database now?"
+                : "Check and sync any queued offline sales with the server database now?",
+            yesText: "Sync Now",
+            cancelText: "Cancel");
+
+        if (confirmed != true)
+        {
+            return;
+        }
+
         _syncingOffline = true;
+        StateHasChanged();
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync(650);
             var result = await JS.InvokeAsync<OfflinePosState?>("RjamOfflinePos.syncNow");
             if (result is not null)
             {
@@ -478,12 +508,43 @@
         }
     }
 
-    private async Task OpenOfflineOverlayAsync(string tab)
+    private async Task ConfirmToggleOfflineModeAsync(bool enableOffline)
     {
+        var confirmed = await DialogService.ShowMessageBoxAsync(
+            title: enableOffline ? "Switch to Offline POS Mode?" : "Switch Back to Online POS Mode?",
+            message: enableOffline
+                ? "In Offline POS Mode, sales are saved locally on this device and queued until you switch back to Online Mode. Do you want to enable Offline POS Mode now?"
+                : _offlineState.PendingCount > 0
+                    ? $"You have {_offlineState.PendingCount} offline sale(s) queued on this device. Switching to Online Mode will transfer them to the server database now."
+                    : "Turn off Offline POS Mode and reconnect to Live POS?",
+            yesText: enableOffline ? "Enable Offline Mode" : "Switch to Online & Sync",
+            cancelText: enableOffline ? "Stay Online" : "Stay Offline");
+
+        if (confirmed != true)
+        {
+            _switchRenderKey++;
+            StateHasChanged();
+            return;
+        }
+
         try
         {
             await CacheFullCatalogSnapshotAsync();
-            await JS.InvokeVoidAsync("RjamOfflinePos.openOfflineOverlay", tab);
+            var updated = await JS.InvokeAsync<OfflinePosState?>("RjamOfflinePos.setManualOfflineMode", enableOffline, "pos");
+            if (updated is not null)
+            {
+                _offlineState = updated;
+            }
+            _switchRenderKey++;
+            if (!enableOffline)
+            {
+                await LoadCatalogAsync();
+                Snackbar.Add("Switched back to Online POS Mode.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("Offline POS Mode enabled. Sales will queue locally on this device.", Severity.Warning);
+            }
         }
         catch
         {
@@ -543,11 +604,20 @@
         {
             line.Quantity = next;
         }
+
+        if (_discountAmount > SubTotal)
+        {
+            _discountAmount = SubTotal;
+        }
     }
 
     private void RemoveFromCart(int productId)
     {
         _cart.RemoveAll(c => c.ProductId == productId);
+        if (_discountAmount > SubTotal)
+        {
+            _discountAmount = SubTotal;
+        }
     }
 
     private void ClearCart()
@@ -565,10 +635,11 @@
         _isSubmitting = true;
         try
         {
+            var effectiveDiscount = Math.Clamp(_discountAmount, 0m, SubTotal);
             var request = new CompletePosSaleRequest(
                 ClientIdempotencyKey: _checkoutIdempotencyKey,
                 PaymentMethod: _paymentMethod,
-                DiscountAmount: _discountAmount,
+                DiscountAmount: effectiveDiscount,
                 AmountTendered: _amountTendered,
                 Items: _cart.Select(c => new PosSaleItemInput(c.ProductId, c.Quantity)).ToList());
 

@@ -13,3 +13,4 @@ C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Application\obj\Release\
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Application\obj\Release\net9.0\refint\RjamBakery.Application.dll
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Application\obj\Release\net9.0\RjamBakery.Application.pdb
 C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Application\obj\Release\net9.0\ref\RjamBakery.Application.dll
+C:\Users\Roejon\source\repos\RJAM_LATEST\src\RjamBakery.Application\obj\Release\net9.0\RjamBakery.Application.sourcelink.json

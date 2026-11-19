@@ -21,7 +21,7 @@
         <MudStack Spacing="3">
             <MudStack Row="true" AlignItems="AlignItems.Center" Justify="Justify.SpaceBetween" Wrap="Wrap.Wrap" Spacing="2">
                 <MudText Typo="Typo.subtitle1">Supplier Receiving Records</MudText>
-                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="StartNewReceipt">
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" Disabled="_initialLoading" OnClick="StartNewReceipt">
                     Record Delivery Receipt
                 </MudButton>
             </MudStack>
@@ -49,7 +49,7 @@
                     {
                         <MudGrid Spacing="2" Class="mb-2">
                             <MudItem xs="12" sm="4">
-                                <MudSelect @bind-Value="line.RawMaterialId" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
+                                <MudSelect T="int" Value="line.RawMaterialId" ValueChanged="@(v => OnReceiptMaterialChanged(line, v))" Label="Raw Material" Variant="Variant.Outlined" Margin="Margin.Dense">
                                     @foreach (var m in _materials)
                                     {
                                         <MudSelectItem Value="m.Id">@m.Name (@m.UnitCode)</MudSelectItem>
@@ -117,11 +117,12 @@
                     <MudTd DataLabel="Actions">
                         @if (context.Status == MaterialReceiptStatus.Draft)
                         {
+                            var isBusy = _busyReceiptId == context.Id;
                             <MudStack Row="true" Spacing="1">
-                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" OnClick="@(() => ConfirmReceiptAsync(context.Id))">
-                                    Confirm
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Success" Disabled="@(_busyReceiptId.HasValue)" OnClick="@(() => ConfirmReceiptAsync(context.Id))">
+                                    <LoadingButtonContent Loading="isBusy" Text="Confirm" LoadingText="Confirming..." />
                                 </MudButton>
-                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="@(() => CancelDraftReceiptAsync(context.Id))">
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="@(_busyReceiptId.HasValue)" OnClick="@(() => CancelDraftReceiptAsync(context.Id))">
                                     Cancel
                                 </MudButton>
                             </MudStack>
@@ -253,6 +254,7 @@
     private bool _loading = true;
     private bool _initialLoading = true;
     private bool _saving;
+    private long? _busyReceiptId;
 
     private ReceiptForm? _newReceipt;
     private SupplierForm? _supForm;
@@ -261,6 +263,7 @@
     {
         try
         {
+            await PageLoadingSkeleton.WaitVisualDelayAsync();
             _currency = (await SettingService.GetOperationalConfigAsync()).CurrencySymbol;
             _units = (await ProductService.GetUnitsOfMeasureAsync()).ToList();
             _materials = (await RawMaterialService.GetPagedAsync(new RawMaterialQuery(PageSize: 200))).Items.ToList();
@@ -304,6 +307,16 @@
         _newReceipt?.Lines.Add(new ReceiptLineForm { RawMaterialId = firstMat.Id, UnitId = firstMat.UnitId, Quantity = 1m });
     }
 
+    private void OnReceiptMaterialChanged(ReceiptLineForm line, int rawMaterialId)
+    {
+        line.RawMaterialId = rawMaterialId;
+        var mat = _materials.FirstOrDefault(m => m.Id == rawMaterialId);
+        if (mat is not null)
+        {
+            line.UnitId = mat.UnitId;
+        }
+    }
+
     private async Task SaveReceiptDraftAsync()
     {
         if (_newReceipt is null || _saving) return;
@@ -326,6 +339,8 @@
 
     private async Task ConfirmReceiptAsync(long id)
     {
+        if (_busyReceiptId.HasValue) return;
+        _busyReceiptId = id;
         try
         {
             await ReceiptService.ConfirmAsync(id);
@@ -336,19 +351,24 @@
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
+        finally { _busyReceiptId = null; }
     }
 
     private async Task CancelDraftReceiptAsync(long id)
     {
+        if (_busyReceiptId.HasValue) return;
+        _busyReceiptId = id;
         try
         {
             await ReceiptService.CancelDraftAsync(id, "Cancelled by staff");
+            Snackbar.Add("Draft material receipt cancelled.", Severity.Info);
             await LoadAllAsync();
         }
         catch (DomainException ex)
         {
             Snackbar.Add(ex.Message, Severity.Error);
         }
+        finally { _busyReceiptId = null; }
     }
 
     private void NewSupplier() => _supForm = new SupplierForm();

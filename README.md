@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # RJAM Bakery Management and Inventory System
 
 A centralized bakery operations and inventory platform connecting **Suppliers → Raw Materials → Production → Factory Finished Goods → Store Deliveries → Store Inventory → POS Sales → Daily Closing → Operational Reports**.
@@ -31,3 +32,7 @@ dotnet test RjamBakery.slnx
 ```
 
 Integration tests automatically manage an isolated `rjam_bakery_ms_test_db` database without modifying `rjam_bakery_ms_db`.
+=======
+# RJAM_Bakery_Inventory_System
+RJAM is a commissioned web development project designed to provide a functional, user-friendly, and responsive digital solution based on the client's requirements.
+>>>>>>> 029724978f829019d2b67a53ae1efd171031e0b3
